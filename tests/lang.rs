@@ -9,11 +9,16 @@ use quenya_lang::environment::Environment;
 use quenya_lang::interpreter;
 use quenya_lang::lexer;
 use quenya_lang::parser;
+use quenya_lang::typecheck::TypeChecker;
 
-// Run a program and capture its output.
+// Run a program and capture its output. Types are checked before execution.
 fn run(source: &str) -> Result<String, String> {
     let tokens = lexer::tokenize(source).map_err(|error| error.to_string())?;
     let program = parser::parse(tokens).map_err(|error| error.to_string())?;
+    let mut checker = TypeChecker::new();
+    checker
+        .check_program(&program)
+        .map_err(|error| error.to_string())?;
     let env: Rc<RefCell<Environment>> = Environment::new();
     let mut output = Vec::new();
     interpreter::run(&program, &env, &mut output).map_err(|error| error.to_string())?;
@@ -108,16 +113,19 @@ fn nested_lists() {
 }
 
 #[test]
-fn list_self_reference() {
-    assert_eq!(ok("ea xs = [1]; xs[0] = xs; quete(xs);"), "[[...]]\n");
+fn recursive_list_is_rejected() {
+    // Rust also rejects a value that contains itself without indirection.
+    let error = run("ea xs = [1]; xs[0] = xs;").unwrap_err();
+    assert!(
+        error.contains("expected `Int`, found `List<Int>`"),
+        "{error}"
+    );
 }
 
 #[test]
-fn list_equality_cycles() {
-    assert_eq!(
-        ok("ea a = [1]; a[0] = a; ea b = [1]; b[0] = b; quete(a == b);"),
-        "naite\n"
-    );
+fn infinite_type_is_rejected() {
+    let error = run("ea xs = []; napan(xs, xs);").unwrap_err();
+    assert!(error.contains("infinite type"), "{error}");
 }
 
 #[test]
@@ -164,7 +172,7 @@ fn list_index_errors() {
 #[test]
 fn for_requires_list() {
     let error = run("ilya x mi 5 { quete(x); }").unwrap_err();
-    assert!(error.contains("expected list"), "{error}");
+    assert!(error.contains("expected a list"), "{error}");
 }
 
 #[test]
@@ -178,7 +186,7 @@ fn builtin_type_errors() {
 #[test]
 fn list_of_functions() {
     assert_eq!(
-        ok("maita inc(x) { entul x + 1; } ea fs = [inc]; quete(fs[0](4));"),
+        ok("maita inc(x: Int) -> Int { entul x + 1; } ea fs = [inc]; quete(fs[0](4));"),
         "5\n"
     );
 }
@@ -188,7 +196,7 @@ fn for_loop_closures() {
     let source = r#"
         ea fs = [];
         ilya x mi [1, 2, 3] {
-            maita f() { entul x; }
+            maita f() -> Int { entul x; }
             napan(fs, f);
         }
         quete(fs[0]());
@@ -201,7 +209,7 @@ fn for_loop_closures() {
 #[test]
 fn functions() {
     assert_eq!(
-        ok("maita add(a, b) { entul a + b; } quete(add(2, 3));"),
+        ok("maita add(a: Int, b: Int) -> Int { entul a + b; } quete(add(2, 3));"),
         "5\n"
     );
 }
@@ -209,7 +217,7 @@ fn functions() {
 #[test]
 fn recursion() {
     assert_eq!(
-        ok("maita fib(n) { qui n < 2 { entul n; } entul fib(n - 1) + fib(n - 2); } quete(fib(10));"),
+        ok("maita fib(n: Int) -> Int { qui n < 2 { entul n; } entul fib(n - 1) + fib(n - 2); } quete(fib(10));"),
         "55\n"
     );
 }
@@ -217,8 +225,8 @@ fn recursion() {
 #[test]
 fn closures() {
     let source = r#"
-        maita adder(x) {
-            maita add(y) {
+        maita adder(x: Int) -> maita(Int) -> Int {
+            maita add(y: Int) -> Int {
                 entul x + y;
             }
             entul add;
@@ -247,7 +255,7 @@ fn scopes() {
 #[test]
 fn short_circuit() {
     let source = r#"
-        maita boom() { quete("boom"); entul naite; }
+        maita boom() -> Bool { quete("boom"); entul naite; }
         quete(la naite ar boom());
         quete(naite hya boom());
     "#;
@@ -286,7 +294,7 @@ fn condition_must_be_boolean() {
 
 #[test]
 fn arity_error() {
-    let error = run("maita f(a) { entul a; } f();").unwrap_err();
+    let error = run("maita f(a: Int) -> Int { entul a; } f();").unwrap_err();
     assert!(error.contains("expects 1 arguments, got 0"), "{error}");
 }
 
@@ -294,6 +302,118 @@ fn arity_error() {
 fn type_error() {
     let error = run(r#"quete(1 + "a");"#).unwrap_err();
     assert!(error.contains("cannot add"), "{error}");
+}
+
+#[test]
+fn type_annotations() {
+    assert_eq!(ok("ea x: Int = 5; quete(x);"), "5\n");
+    let error = run(r#"ea x: Str = 1;"#).unwrap_err();
+    assert!(error.contains("expected `Str`, found `Int`"), "{error}");
+}
+
+#[test]
+fn function_signatures() {
+    assert_eq!(
+        ok("maita add(a: Int, b: Int) -> Int { entul a + b; } quete(add(2, 3));"),
+        "5\n"
+    );
+    let error = run(r#"maita f(x: Int) -> Int { entul x; } quete(f("a"));"#).unwrap_err();
+    assert!(error.contains("expected `Int`, found `Str`"), "{error}");
+    let error = run(r#"maita f() -> Int { entul "a"; }"#).unwrap_err();
+    assert!(error.contains("expected `Int`, found `Str`"), "{error}");
+}
+
+#[test]
+fn missing_return() {
+    let error = run("maita f() -> Int { }").unwrap_err();
+    assert!(
+        error.contains("not all control paths return a value"),
+        "{error}"
+    );
+    assert_eq!(
+        ok("maita f() -> Int { qui naite { entul 1; } mal { entul 2; } } quete(f());"),
+        "1\n"
+    );
+}
+
+#[test]
+fn empty_list_inference() {
+    assert_eq!(ok("ea xs = []; napan(xs, 1); quete(xs);"), "[1]\n");
+    let error = run("ea xs = [];").unwrap_err();
+    assert!(error.contains("cannot infer the type"), "{error}");
+    assert_eq!(
+        ok("ea xs: List<Int> = []; napan(xs, 1); quete(xs);"),
+        "[1]\n"
+    );
+}
+
+#[test]
+fn list_type_errors() {
+    let error = run(r#"ea xs = [1, "a"];"#).unwrap_err();
+    assert!(error.contains("expected `Int`, found `Str`"), "{error}");
+    let error = run(r#"ea xs = [1]; quete(xs["a"]);"#).unwrap_err();
+    assert!(error.contains("expected `Int`, found `Str`"), "{error}");
+    let error = run(r#"ea xs = [1]; xs[0] = "a";"#).unwrap_err();
+    assert!(error.contains("expected `Int`, found `Str`"), "{error}");
+    let error = run(r#"napan([1], "a");"#).unwrap_err();
+    assert!(error.contains("expected `Int`, found `Str`"), "{error}");
+}
+
+#[test]
+fn higher_order_functions() {
+    let source = r#"
+        maita apply(f: maita(Int) -> Int, x: Int) -> Int {
+            entul f(x);
+        }
+        maita inc(x: Int) -> Int {
+            entul x + 1;
+        }
+        quete(apply(inc, 4));
+    "#;
+    assert_eq!(ok(source), "5\n");
+}
+
+#[test]
+fn function_type_mismatch() {
+    let error =
+        run(r#"maita f(x: Int) -> Int { entul x; } ea g: maita(Str) -> Str = f;"#).unwrap_err();
+    assert!(error.contains("expected `Str`, found `Int`"), "{error}");
+}
+
+#[test]
+fn builtin_as_value() {
+    assert_eq!(ok(r#"ea f = not; quete(f("hello"));"#), "5\n");
+    assert_eq!(
+        ok("ea f = napan; ea xs = [1]; f(xs, 2); quete(xs);"),
+        "[1, 2]\n"
+    );
+}
+
+#[test]
+fn shadowing_builtin() {
+    assert_eq!(
+        ok("maita not(x: Int) -> Int { entul x; } quete(not(1));"),
+        "1\n"
+    );
+}
+
+#[test]
+fn duplicate_parameter() {
+    let error = run("maita f(x: Int, x: Int) -> Int { entul x; }").unwrap_err();
+    assert!(error.contains("duplicate parameter `x`"), "{error}");
+}
+
+#[test]
+fn unit_function() {
+    assert_eq!(ok("maita log(x: Int) { quete(x); } log(1);"), "1\n");
+    let error = run("maita log(x: Int) { entul x; }").unwrap_err();
+    assert!(error.contains("expected `Unit`, found `Int`"), "{error}");
+}
+
+#[test]
+fn empty_list_not_is_rejected() {
+    let error = run("quete(not([]));").unwrap_err();
+    assert!(error.contains("cannot infer"), "{error}");
 }
 
 #[test]

@@ -14,6 +14,7 @@ use quenya_lang::error::Error;
 use quenya_lang::interpreter;
 use quenya_lang::lexer;
 use quenya_lang::parser;
+use quenya_lang::typecheck::TypeChecker;
 
 // One argument is a file. No arguments start the REPL.
 fn main() {
@@ -38,18 +39,21 @@ fn run_file(path: &str) -> Result<(), Error> {
     let source = fs::read_to_string(path)
         .map_err(|error| Error::new(0, format!("cannot read `{path}`: {error}")))?;
     let env = Environment::new();
+    let mut checker = TypeChecker::new();
     let mut stdout = io::stdout();
-    run_source(&source, &env, &mut stdout)
+    run_source(&source, &env, &mut checker, &mut stdout)
 }
 
-// The full pipeline: lex, parse, run.
+// The full pipeline: lex, parse, type-check, run.
 fn run_source(
     source: &str,
     env: &Rc<RefCell<Environment>>,
+    checker: &mut TypeChecker,
     out: &mut dyn Write,
 ) -> Result<(), Error> {
     let tokens = lexer::tokenize(source)?;
     let program = parser::parse(tokens)?;
+    checker.check_program(&program)?;
     interpreter::run(&program, env, out)
 }
 
@@ -58,6 +62,7 @@ fn repl() {
     let stdin = io::stdin();
     let mut stdout = io::stdout();
     let env = Environment::new();
+    let mut checker = TypeChecker::new();
     let mut buffer = String::new();
 
     println!("Quenya 0.2. Enter `:q` to quit.");
@@ -89,7 +94,7 @@ fn repl() {
         }
 
         let source = std::mem::take(&mut buffer);
-        if let Err(error) = run_source(&source, &env, &mut stdout) {
+        if let Err(error) = run_source(&source, &env, &mut checker, &mut stdout) {
             eprintln!("error: {error}");
         }
     }

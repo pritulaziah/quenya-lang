@@ -4,7 +4,7 @@
 //! Expression rules follow precedence from low to high:
 //! or, and, equality, comparison, term, factor, unary, call.
 
-use crate::ast::{BinaryOp, Expr, ExprKind, Stmt, StmtKind, UnaryOp};
+use crate::ast::{BinaryOp, Expr, ExprKind, Param, Stmt, StmtKind, Type, UnaryOp};
 use crate::error::Error;
 use crate::lexer::{Token, TokenKind};
 
@@ -101,6 +101,12 @@ impl Parser {
 
     fn let_statement(&mut self, line: usize) -> Result<Stmt, Error> {
         let name = self.consume_ident("expected variable name after `ea`")?;
+        // Rust infers local types, but a type annotation is allowed.
+        let ty = if self.match_token(&TokenKind::Colon) {
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
         self.consume(&TokenKind::Assign, "expected `=` after variable name")?;
         let value = self.expression()?;
         self.consume(
@@ -108,7 +114,7 @@ impl Parser {
             "expected `;` after variable declaration",
         )?;
         Ok(Stmt {
-            kind: StmtKind::Let { name, value },
+            kind: StmtKind::Let { name, ty, value },
             line,
         })
     }
@@ -120,7 +126,17 @@ impl Parser {
         let mut params = Vec::new();
         if !self.check(&TokenKind::RParen) {
             loop {
-                params.push(self.consume_ident("expected parameter name")?);
+                // Rust requires a type for every function parameter.
+                let param_name = self.consume_ident("expected parameter name")?;
+                self.consume(
+                    &TokenKind::Colon,
+                    "expected `:` and a type after parameter name",
+                )?;
+                let ty = self.parse_type()?;
+                params.push(Param {
+                    name: param_name,
+                    ty,
+                });
                 if !self.match_token(&TokenKind::Comma) {
                     break;
                 }
@@ -128,11 +144,76 @@ impl Parser {
         }
 
         self.consume(&TokenKind::RParen, "expected `)` after parameters")?;
+        // Rust writes `-> Type` for non-unit returns. Without it, the
+        // function returns `Unit`, just like Rust's `()`.
+        let ret = if self.match_token(&TokenKind::Arrow) {
+            self.parse_type()?
+        } else {
+            Type::Unit
+        };
         let body = self.block()?;
         Ok(Stmt {
-            kind: StmtKind::Function { name, params, body },
+            kind: StmtKind::Function {
+                name,
+                params,
+                ret,
+                body,
+            },
             line,
         })
+    }
+
+    // Parse a type annotation.
+    //
+    // Types are `Int`, `Str`, `Bool`, `Unit`, `List<T>`, and function types
+    // written as `maita(T, ...) -> R`.
+    fn parse_type(&mut self) -> Result<Type, Error> {
+        let token = self.peek().clone();
+        match token.kind {
+            TokenKind::Ident(name) => {
+                self.advance();
+                match name.as_str() {
+                    "Int" => Ok(Type::Int),
+                    "Str" => Ok(Type::Str),
+                    "Bool" => Ok(Type::Bool),
+                    "Unit" => Ok(Type::Unit),
+                    "List" => {
+                        self.consume(&TokenKind::Lt, "expected `<` after `List`")?;
+                        let inner = self.parse_type()?;
+                        self.consume(&TokenKind::Gt, "expected `>` after list type")?;
+                        Ok(Type::List(Box::new(inner)))
+                    }
+                    _ => Err(Error::new(token.line, format!("unknown type `{name}`"))),
+                }
+            }
+            TokenKind::Fn => {
+                self.advance();
+                self.consume(
+                    &TokenKind::LParen,
+                    "expected `(` after `maita` in a function type",
+                )?;
+                let mut params = Vec::new();
+                if !self.check(&TokenKind::RParen) {
+                    loop {
+                        params.push(self.parse_type()?);
+                        if !self.match_token(&TokenKind::Comma) {
+                            break;
+                        }
+                    }
+                }
+                self.consume(
+                    &TokenKind::RParen,
+                    "expected `)` after function type parameters",
+                )?;
+                let ret = if self.match_token(&TokenKind::Arrow) {
+                    self.parse_type()?
+                } else {
+                    Type::Unit
+                };
+                Ok(Type::Function(params, Box::new(ret)))
+            }
+            _ => Err(self.error("expected type")),
+        }
     }
 
     // `mal qui` is an else-if. `mal { ... }` is an else block.

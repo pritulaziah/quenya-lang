@@ -51,8 +51,8 @@ fn execute(
     out: &mut dyn Write,
 ) -> Result<Flow, Error> {
     match &stmt.kind {
-        // Define in the current scope.
-        StmtKind::Let { name, value } => {
+        // Define in the current scope. Types are checked before execution.
+        StmtKind::Let { name, value, .. } => {
             let value = eval(value, env, out)?;
             env.borrow_mut().define(name.clone(), value);
             Ok(Flow::Normal)
@@ -174,11 +174,13 @@ fn execute(
         // The enclosing loop handles these flows.
         StmtKind::Break => Ok(Flow::Break(stmt.line)),
         StmtKind::Continue => Ok(Flow::Continue(stmt.line)),
-        // Capture the current environment.
-        StmtKind::Function { name, params, body } => {
+        // Capture the current environment. Types are checked before execution.
+        StmtKind::Function {
+            name, params, body, ..
+        } => {
             let function = Function {
                 name: name.clone(),
-                params: params.clone(),
+                params: params.iter().map(|param| param.name.clone()).collect(),
                 body: body.clone(),
                 env: env.clone(),
             };

@@ -8,6 +8,7 @@
     { "include": "#function-declaration" },
     { "include": "#variable-declaration" },
     { "include": "#keywords" },
+    { "include": "#types" },
     { "include": "#function-call" },
     { "include": "#identifiers" },
     { "include": "#numbers" },
@@ -71,6 +72,10 @@
         }
       ]
     },
+    "types": {
+      "match": "\\b(Int|Str|Bool|Unit|List)\\b",
+      "name": "support.type.quenya"
+    },
     "function-call": {
       "match": "([\\p{L}_][\\p{L}\\p{N}_]*)[ \\t]*(?=\\()",
       "captures": {
@@ -86,7 +91,7 @@
       "name": "constant.numeric.integer.quenya"
     },
     "operators": {
-      "match": "==|!=|<=|>=|[=+*/%<>-]",
+      "match": "==|!=|<=|>=|->|[=+*/%<>:-]",
       "name": "keyword.operator.quenya"
     },
     "braces": {

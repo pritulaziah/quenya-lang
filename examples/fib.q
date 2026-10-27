@@ -1,7 +1,7 @@
 # Fibonacci numbers.
 
 # A recursive function.
-maita fib(n) {
+maita fib(n: Int) -> Int {
     qui n < 2 {
         entul n;
     }

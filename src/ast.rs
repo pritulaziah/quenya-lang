@@ -3,6 +3,8 @@
 //! An expression produces a value. A statement performs an action.
 //! The parser builds this tree. The interpreter walks it.
 
+use std::fmt;
+
 /// A unary operator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOp {
@@ -33,6 +35,51 @@ pub enum BinaryOp {
     // Logical. These operators short-circuit.
     And,
     Or,
+}
+
+/// A static type written in source code.
+///
+/// Rust checks types before a program runs. This language does the same in a
+/// separate pass. The types are deliberately small: there are no generics,
+/// traits, or lifetimes yet.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Type {
+    Int,
+    Str,
+    Bool,
+    Unit,
+    List(Box<Type>),
+    /// A function type, for example `maita(Int, Str) -> Bool`.
+    Function(Vec<Type>, Box<Type>),
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Type::Int => write!(f, "Int"),
+            Type::Str => write!(f, "Str"),
+            Type::Bool => write!(f, "Bool"),
+            Type::Unit => write!(f, "Unit"),
+            Type::List(inner) => write!(f, "List<{inner}>"),
+            Type::Function(params, ret) => {
+                write!(f, "maita(")?;
+                for (index, param) in params.iter().enumerate() {
+                    if index > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{param}")?;
+                }
+                write!(f, ") -> {ret}")
+            }
+        }
+    }
+}
+
+/// A function parameter with its type.
+#[derive(Debug, Clone)]
+pub struct Param {
+    pub name: String,
+    pub ty: Type,
 }
 
 /// An expression with its source line.
@@ -75,8 +122,14 @@ pub struct Stmt {
 /// The shape of a statement.
 #[derive(Debug, Clone)]
 pub enum StmtKind {
-    /// `ea name = value;`
-    Let { name: String, value: Expr },
+    /// `ea name: Type = value;` or `ea name = value;`
+    ///
+    /// The type annotation is optional. Local types are inferred.
+    Let {
+        name: String,
+        ty: Option<Type>,
+        value: Expr,
+    },
     /// `name = value;`
     Assign { name: String, value: Expr },
     /// `target[index] = value;`
@@ -107,10 +160,13 @@ pub enum StmtKind {
     Break,
     /// `lelya;`
     Continue,
-    /// `maita name(params) { ... }`
+    /// `maita name(params) -> Type { ... }`
+    ///
+    /// The return type is `Unit` when `-> Type` is omitted.
     Function {
         name: String,
-        params: Vec<String>,
+        params: Vec<Param>,
+        ret: Type,
         body: Vec<Stmt>,
     },
     /// `entul value;`

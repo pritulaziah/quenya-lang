@@ -39,10 +39,12 @@ pub enum TokenKind {
     RBracket,
     Comma,
     Semicolon,
+    Colon,
 
     // Operators.
     Plus,
     Minus,
+    Arrow,
     Star,
     Slash,
     Percent,
@@ -92,8 +94,18 @@ pub fn tokenize(source: &str) -> Result<Vec<Token>, Error> {
             ']' => tokens.push(lexer.single(TokenKind::RBracket)),
             ',' => tokens.push(lexer.single(TokenKind::Comma)),
             ';' => tokens.push(lexer.single(TokenKind::Semicolon)),
+            ':' => tokens.push(lexer.single(TokenKind::Colon)),
             '+' => tokens.push(lexer.single(TokenKind::Plus)),
-            '-' => tokens.push(lexer.single(TokenKind::Minus)),
+            '-' => {
+                let line = lexer.line;
+                lexer.advance();
+                let kind = if lexer.match_char('>') {
+                    TokenKind::Arrow
+                } else {
+                    TokenKind::Minus
+                };
+                tokens.push(Token { kind, line });
+            }
             '*' => tokens.push(lexer.single(TokenKind::Star)),
             '/' => tokens.push(lexer.single(TokenKind::Slash)),
             '%' => tokens.push(lexer.single(TokenKind::Percent)),

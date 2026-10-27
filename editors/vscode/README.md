@@ -36,6 +36,7 @@ quete(x);
 
 - Syntax highlighting for Quenya keywords, declarations, variables, functions, strings, numbers, and comments.
 - List literals, indexing, and `ilya ... mi ...` loops with `rac` and `lelya`.
+- Type annotations for function parameters, return types, and local variables.
 - Comment toggling with `#`.
 - Bracket matching and auto-closing for `{}`, `()`, `[]`, and `""`.
 - Indentation after `{`.
