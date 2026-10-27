@@ -16,7 +16,7 @@ Install the extension from a VSIX file:
 
 1. Open the Extensions view with `Ctrl+Shift+X`.
 2. Open the `...` menu and select **Install from VSIX...**.
-3. Select `quenya-lang-0.1.5.vsix`.
+3. Select `quenya-lang-0.1.6.vsix`.
 4. Reload the window.
 
 ## Quick Start
