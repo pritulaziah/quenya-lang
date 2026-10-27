@@ -1,0 +1,128 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Quenya",
+  "scopeName": "source.quenya",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#function-declaration" },
+    { "include": "#variable-declaration" },
+    { "include": "#keywords" },
+    { "include": "#function-call" },
+    { "include": "#identifiers" },
+    { "include": "#numbers" },
+    { "include": "#operators" },
+    { "include": "#braces" },
+    { "include": "#parens" },
+    { "include": "#separators" }
+  ],
+  "repository": {
+    "comments": {
+      "match": "#.*$",
+      "name": "comment.line.number-sign.quenya"
+    },
+    "strings": {
+      "begin": "\"",
+      "end": "\"",
+      "name": "string.quoted.double.quenya",
+      "patterns": [
+        {
+          "match": "\\\\.",
+          "name": "constant.character.escape.quenya"
+        }
+      ]
+    },
+    "function-declaration": {
+      "match": "\\b(maita)[ \\t]+([\\p{L}_][\\p{L}\\p{N}_]*)",
+      "captures": {
+        "1": { "name": "storage.type.quenya" },
+        "2": { "name": "entity.name.function.quenya" }
+      }
+    },
+    "variable-declaration": {
+      "match": "\\b(ea)[ \\t]+([\\p{L}_][\\p{L}\\p{N}_]*)",
+      "captures": {
+        "1": { "name": "storage.type.quenya" },
+        "2": { "name": "variable.other.quenya" }
+      }
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "match": "\\bquete\\b",
+          "name": "support.function.builtin.quenya"
+        },
+        {
+          "match": "\\b(ea|maita)\\b",
+          "name": "storage.type.quenya"
+        },
+        {
+          "match": "\\b(entul|qui|mal|ya)\\b",
+          "name": "keyword.control.quenya"
+        },
+        {
+          "match": "\\bnaite\\b",
+          "name": "constant.language.boolean.quenya"
+        },
+        {
+          "match": "\\b(la|ar|hya)\\b",
+          "name": "keyword.operator.logical.quenya"
+        }
+      ]
+    },
+    "function-call": {
+      "match": "([\\p{L}_][\\p{L}\\p{N}_]*)[ \\t]*(?=\\()",
+      "captures": {
+        "1": { "name": "entity.name.function.quenya" }
+      }
+    },
+    "identifiers": {
+      "match": "[\\p{L}_][\\p{L}\\p{N}_]*",
+      "name": "variable.other.quenya"
+    },
+    "numbers": {
+      "match": "\\b\\d+\\b",
+      "name": "constant.numeric.integer.quenya"
+    },
+    "operators": {
+      "match": "==|!=|<=|>=|[=+*/%<>-]",
+      "name": "keyword.operator.quenya"
+    },
+    "braces": {
+      "patterns": [
+        {
+          "match": "\\{",
+          "name": "punctuation.section.block.begin.quenya"
+        },
+        {
+          "match": "\\}",
+          "name": "punctuation.section.block.end.quenya"
+        }
+      ]
+    },
+    "parens": {
+      "patterns": [
+        {
+          "match": "\\(",
+          "name": "punctuation.section.parens.begin.quenya"
+        },
+        {
+          "match": "\\)",
+          "name": "punctuation.section.parens.end.quenya"
+        }
+      ]
+    },
+    "separators": {
+      "patterns": [
+        {
+          "match": ",",
+          "name": "punctuation.separator.comma.quenya"
+        },
+        {
+          "match": ";",
+          "name": "punctuation.terminator.statement.quenya"
+        }
+      ]
+    }
+  }
+}
