@@ -7,6 +7,10 @@
 //! calls, operators, lists, conditions, and returns. It is deliberately
 //! small: there are no generics, traits, or ownership yet. The builtins
 //! `not` and `napan` are special-cased until the language gets traits.
+//!
+//! The variants below use English names for code readability. `Display`
+//! prints the Quenya source names: `Quanta`, `Quetta`, `Nanwa`, `Er`,
+//! and `Técma<T>`.
 
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -47,11 +51,11 @@ impl InferType {
 impl fmt::Display for InferType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            InferType::Int => write!(f, "Int"),
-            InferType::Str => write!(f, "Str"),
-            InferType::Bool => write!(f, "Bool"),
-            InferType::Unit => write!(f, "Unit"),
-            InferType::List(inner) => write!(f, "List<{inner}>"),
+            InferType::Int => write!(f, "Quanta"),
+            InferType::Str => write!(f, "Quetta"),
+            InferType::Bool => write!(f, "Nanwa"),
+            InferType::Unit => write!(f, "Er"),
+            InferType::List(inner) => write!(f, "Técma<{inner}>"),
             InferType::Function(params, ret) => {
                 write!(f, "maita(")?;
                 for (index, param) in params.iter().enumerate() {
@@ -411,8 +415,8 @@ impl TypeChecker {
         }
     }
 
-    // `+` works for Int, Str, and List. This helper keeps the type errors
-    // specific instead of reporting a generic mismatch.
+    // `+` works for Quanta, Quetta, and Técma. This helper keeps the type
+    // errors specific instead of reporting a generic mismatch.
     fn infer_add(
         &mut self,
         left_type: &InferType,

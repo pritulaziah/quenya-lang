@@ -1,6 +1,6 @@
 # A closure captures x.
-maita adder(x: Int) -> maita(Int) -> Int {
-    maita add(y: Int) -> Int {
+maita adder(x: Quanta) -> maita(Quanta) -> Quanta {
+    maita add(y: Quanta) -> Quanta {
         entul x + y;
     }
     # Return the inner function.

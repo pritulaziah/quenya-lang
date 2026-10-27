@@ -73,7 +73,7 @@
       ]
     },
     "types": {
-      "match": "\\b(Int|Str|Bool|Unit|List)\\b",
+      "match": "(?<![\\p{L}\\p{N}_])(Quanta|Quetta|Nanwa|Er|Técma|Tecma)(?![\\p{L}\\p{N}_])",
       "name": "support.type.quenya"
     },
     "function-call": {

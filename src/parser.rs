@@ -145,7 +145,7 @@ impl Parser {
 
         self.consume(&TokenKind::RParen, "expected `)` after parameters")?;
         // Rust writes `-> Type` for non-unit returns. Without it, the
-        // function returns `Unit`, just like Rust's `()`.
+        // function returns `Er`, just like Rust's `()`.
         let ret = if self.match_token(&TokenKind::Arrow) {
             self.parse_type()?
         } else {
@@ -165,20 +165,22 @@ impl Parser {
 
     // Parse a type annotation.
     //
-    // Types are `Int`, `Str`, `Bool`, `Unit`, `List<T>`, and function types
-    // written as `maita(T, ...) -> R`.
+    // The source names are Quenya: `Quanta` (Int), `Quetta` (Str),
+    // `Nanwa` (Bool), `Er` (Unit), `Técma<T>` (List), and function types
+    // written as `maita(T, ...) -> R`. Diacritics and case are optional.
     fn parse_type(&mut self) -> Result<Type, Error> {
         let token = self.peek().clone();
         match token.kind {
             TokenKind::Ident(name) => {
                 self.advance();
-                match name.as_str() {
-                    "Int" => Ok(Type::Int),
-                    "Str" => Ok(Type::Str),
-                    "Bool" => Ok(Type::Bool),
-                    "Unit" => Ok(Type::Unit),
-                    "List" => {
-                        self.consume(&TokenKind::Lt, "expected `<` after `List`")?;
+                let folded = crate::lexer::fold_keyword(&name).to_lowercase();
+                match folded.as_str() {
+                    "quanta" => Ok(Type::Int),
+                    "quetta" => Ok(Type::Str),
+                    "nanwa" => Ok(Type::Bool),
+                    "er" => Ok(Type::Unit),
+                    "tecma" => {
+                        self.consume(&TokenKind::Lt, "expected `<` after `Técma`")?;
                         let inner = self.parse_type()?;
                         self.consume(&TokenKind::Gt, "expected `>` after list type")?;
                         Ok(Type::List(Box::new(inner)))

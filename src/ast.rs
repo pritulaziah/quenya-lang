@@ -39,28 +39,35 @@ pub enum BinaryOp {
 
 /// A static type written in source code.
 ///
+/// The Rust variant names are English for code readability. The user-facing
+/// names are Quenya: `Quanta`, `Quetta`, `Nanwa`, `Er`, and `Técma<T>`.
 /// Rust checks types before a program runs. This language does the same in a
 /// separate pass. The types are deliberately small: there are no generics,
 /// traits, or lifetimes yet.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
+    /// Integer, written `Quanta` in source.
     Int,
+    /// String, written `Quetta` in source.
     Str,
+    /// Boolean, written `Nanwa` in source.
     Bool,
+    /// Unit, written `Er` in source.
     Unit,
+    /// List, written `Técma<T>` in source.
     List(Box<Type>),
-    /// A function type, for example `maita(Int, Str) -> Bool`.
+    /// A function type, for example `maita(Quanta, Quetta) -> Nanwa`.
     Function(Vec<Type>, Box<Type>),
 }
 
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Type::Int => write!(f, "Int"),
-            Type::Str => write!(f, "Str"),
-            Type::Bool => write!(f, "Bool"),
-            Type::Unit => write!(f, "Unit"),
-            Type::List(inner) => write!(f, "List<{inner}>"),
+            Type::Int => write!(f, "Quanta"),
+            Type::Str => write!(f, "Quetta"),
+            Type::Bool => write!(f, "Nanwa"),
+            Type::Unit => write!(f, "Er"),
+            Type::List(inner) => write!(f, "Técma<{inner}>"),
             Type::Function(params, ret) => {
                 write!(f, "maita(")?;
                 for (index, param) in params.iter().enumerate() {
@@ -162,7 +169,7 @@ pub enum StmtKind {
     Continue,
     /// `maita name(params) -> Type { ... }`
     ///
-    /// The return type is `Unit` when `-> Type` is omitted.
+    /// The return type is `Er` when `-> Type` is omitted.
     Function {
         name: String,
         params: Vec<Param>,

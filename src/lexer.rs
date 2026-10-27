@@ -314,7 +314,8 @@ fn is_ident_continue(c: char) -> bool {
 
 // Fold Quenya diacritics for keyword matching.
 // `ëa` and `ea` are the same keyword. `naitë` and `naite` are also the same.
-fn fold_keyword(text: &str) -> String {
+// The parser also uses this to accept type names with or without diacritics.
+pub(crate) fn fold_keyword(text: &str) -> String {
     text.chars()
         .filter(|c| !matches!(c, '\u{0300}'..='\u{036f}'))
         .map(|c| match c {

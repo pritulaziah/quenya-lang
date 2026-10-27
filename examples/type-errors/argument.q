@@ -1,5 +1,5 @@
-# Type error: `f` expects an Int, not a Str.
-maita f(x: Int) -> Int {
+# Type error: `f` expects `Quanta`, not `Quetta`.
+maita f(x: Quanta) -> Quanta {
     entul x;
 }
 

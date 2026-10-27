@@ -117,7 +117,7 @@ fn recursive_list_is_rejected() {
     // Rust also rejects a value that contains itself without indirection.
     let error = run("ea xs = [1]; xs[0] = xs;").unwrap_err();
     assert!(
-        error.contains("expected `Int`, found `List<Int>`"),
+        error.contains("expected `Quanta`, found `Técma<Quanta>`"),
         "{error}"
     );
 }
@@ -186,7 +186,7 @@ fn builtin_type_errors() {
 #[test]
 fn list_of_functions() {
     assert_eq!(
-        ok("maita inc(x: Int) -> Int { entul x + 1; } ea fs = [inc]; quete(fs[0](4));"),
+        ok("maita inc(x: Quanta) -> Quanta { entul x + 1; } ea fs = [inc]; quete(fs[0](4));"),
         "5\n"
     );
 }
@@ -196,7 +196,7 @@ fn for_loop_closures() {
     let source = r#"
         ea fs = [];
         ilya x mi [1, 2, 3] {
-            maita f() -> Int { entul x; }
+            maita f() -> Quanta { entul x; }
             napan(fs, f);
         }
         quete(fs[0]());
@@ -209,7 +209,7 @@ fn for_loop_closures() {
 #[test]
 fn functions() {
     assert_eq!(
-        ok("maita add(a: Int, b: Int) -> Int { entul a + b; } quete(add(2, 3));"),
+        ok("maita add(a: Quanta, b: Quanta) -> Quanta { entul a + b; } quete(add(2, 3));"),
         "5\n"
     );
 }
@@ -217,7 +217,7 @@ fn functions() {
 #[test]
 fn recursion() {
     assert_eq!(
-        ok("maita fib(n: Int) -> Int { qui n < 2 { entul n; } entul fib(n - 1) + fib(n - 2); } quete(fib(10));"),
+        ok("maita fib(n: Quanta) -> Quanta { qui n < 2 { entul n; } entul fib(n - 1) + fib(n - 2); } quete(fib(10));"),
         "55\n"
     );
 }
@@ -225,8 +225,8 @@ fn recursion() {
 #[test]
 fn closures() {
     let source = r#"
-        maita adder(x: Int) -> maita(Int) -> Int {
-            maita add(y: Int) -> Int {
+        maita adder(x: Quanta) -> maita(Quanta) -> Quanta {
+            maita add(y: Quanta) -> Quanta {
                 entul x + y;
             }
             entul add;
@@ -255,7 +255,7 @@ fn scopes() {
 #[test]
 fn short_circuit() {
     let source = r#"
-        maita boom() -> Bool { quete("boom"); entul naite; }
+        maita boom() -> Nanwa { quete("boom"); entul naite; }
         quete(la naite ar boom());
         quete(naite hya boom());
     "#;
@@ -294,7 +294,7 @@ fn condition_must_be_boolean() {
 
 #[test]
 fn arity_error() {
-    let error = run("maita f(a: Int) -> Int { entul a; } f();").unwrap_err();
+    let error = run("maita f(a: Quanta) -> Quanta { entul a; } f();").unwrap_err();
     assert!(error.contains("expects 1 arguments, got 0"), "{error}");
 }
 
@@ -306,32 +306,59 @@ fn type_error() {
 
 #[test]
 fn type_annotations() {
-    assert_eq!(ok("ea x: Int = 5; quete(x);"), "5\n");
-    let error = run(r#"ea x: Str = 1;"#).unwrap_err();
-    assert!(error.contains("expected `Str`, found `Int`"), "{error}");
+    assert_eq!(ok("ea x: Quanta = 5; quete(x);"), "5\n");
+    let error = run(r#"ea x: Quetta = 1;"#).unwrap_err();
+    assert!(
+        error.contains("expected `Quetta`, found `Quanta`"),
+        "{error}"
+    );
+}
+
+#[test]
+fn quenya_type_names() {
+    assert_eq!(ok("ea x: Quanta = 5; quete(x);"), "5\n");
+    // Type names are case-insensitive and accept ASCII spellings.
+    assert_eq!(ok("ea y: quanta = 6; quete(y);"), "6\n");
+    assert_eq!(ok(r#"ea s: Quetta = "a"; quete(s);"#), "a\n");
+    assert_eq!(ok("ea b: Nanwa = naitë; quete(b);"), "naite\n");
+    assert_eq!(ok("ea xs: Técma<Quanta> = [1, 2]; quete(xs);"), "[1, 2]\n");
+    assert_eq!(
+        ok(r#"ea xs: Tecma<Quetta> = ["a"]; quete(xs);"#),
+        "[\"a\"]\n"
+    );
+    assert_eq!(
+        ok("maita log(x: Quanta) { quete(x); } ea u: Er = log(1); quete(u);"),
+        "1\n()\n"
+    );
 }
 
 #[test]
 fn function_signatures() {
     assert_eq!(
-        ok("maita add(a: Int, b: Int) -> Int { entul a + b; } quete(add(2, 3));"),
+        ok("maita add(a: Quanta, b: Quanta) -> Quanta { entul a + b; } quete(add(2, 3));"),
         "5\n"
     );
-    let error = run(r#"maita f(x: Int) -> Int { entul x; } quete(f("a"));"#).unwrap_err();
-    assert!(error.contains("expected `Int`, found `Str`"), "{error}");
-    let error = run(r#"maita f() -> Int { entul "a"; }"#).unwrap_err();
-    assert!(error.contains("expected `Int`, found `Str`"), "{error}");
+    let error = run(r#"maita f(x: Quanta) -> Quanta { entul x; } quete(f("a"));"#).unwrap_err();
+    assert!(
+        error.contains("expected `Quanta`, found `Quetta`"),
+        "{error}"
+    );
+    let error = run(r#"maita f() -> Quanta { entul "a"; }"#).unwrap_err();
+    assert!(
+        error.contains("expected `Quanta`, found `Quetta`"),
+        "{error}"
+    );
 }
 
 #[test]
 fn missing_return() {
-    let error = run("maita f() -> Int { }").unwrap_err();
+    let error = run("maita f() -> Quanta { }").unwrap_err();
     assert!(
         error.contains("not all control paths return a value"),
         "{error}"
     );
     assert_eq!(
-        ok("maita f() -> Int { qui naite { entul 1; } mal { entul 2; } } quete(f());"),
+        ok("maita f() -> Quanta { qui naite { entul 1; } mal { entul 2; } } quete(f());"),
         "1\n"
     );
 }
@@ -342,7 +369,7 @@ fn empty_list_inference() {
     let error = run("ea xs = [];").unwrap_err();
     assert!(error.contains("cannot infer the type"), "{error}");
     assert_eq!(
-        ok("ea xs: List<Int> = []; napan(xs, 1); quete(xs);"),
+        ok("ea xs: Técma<Quanta> = []; napan(xs, 1); quete(xs);"),
         "[1]\n"
     );
 }
@@ -350,22 +377,34 @@ fn empty_list_inference() {
 #[test]
 fn list_type_errors() {
     let error = run(r#"ea xs = [1, "a"];"#).unwrap_err();
-    assert!(error.contains("expected `Int`, found `Str`"), "{error}");
+    assert!(
+        error.contains("expected `Quanta`, found `Quetta`"),
+        "{error}"
+    );
     let error = run(r#"ea xs = [1]; quete(xs["a"]);"#).unwrap_err();
-    assert!(error.contains("expected `Int`, found `Str`"), "{error}");
+    assert!(
+        error.contains("expected `Quanta`, found `Quetta`"),
+        "{error}"
+    );
     let error = run(r#"ea xs = [1]; xs[0] = "a";"#).unwrap_err();
-    assert!(error.contains("expected `Int`, found `Str`"), "{error}");
+    assert!(
+        error.contains("expected `Quanta`, found `Quetta`"),
+        "{error}"
+    );
     let error = run(r#"napan([1], "a");"#).unwrap_err();
-    assert!(error.contains("expected `Int`, found `Str`"), "{error}");
+    assert!(
+        error.contains("expected `Quanta`, found `Quetta`"),
+        "{error}"
+    );
 }
 
 #[test]
 fn higher_order_functions() {
     let source = r#"
-        maita apply(f: maita(Int) -> Int, x: Int) -> Int {
+        maita apply(f: maita(Quanta) -> Quanta, x: Quanta) -> Quanta {
             entul f(x);
         }
-        maita inc(x: Int) -> Int {
+        maita inc(x: Quanta) -> Quanta {
             entul x + 1;
         }
         quete(apply(inc, 4));
@@ -376,8 +415,12 @@ fn higher_order_functions() {
 #[test]
 fn function_type_mismatch() {
     let error =
-        run(r#"maita f(x: Int) -> Int { entul x; } ea g: maita(Str) -> Str = f;"#).unwrap_err();
-    assert!(error.contains("expected `Str`, found `Int`"), "{error}");
+        run(r#"maita f(x: Quanta) -> Quanta { entul x; } ea g: maita(Quetta) -> Quetta = f;"#)
+            .unwrap_err();
+    assert!(
+        error.contains("expected `Quetta`, found `Quanta`"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -392,22 +435,22 @@ fn builtin_as_value() {
 #[test]
 fn shadowing_builtin() {
     assert_eq!(
-        ok("maita not(x: Int) -> Int { entul x; } quete(not(1));"),
+        ok("maita not(x: Quanta) -> Quanta { entul x; } quete(not(1));"),
         "1\n"
     );
 }
 
 #[test]
 fn duplicate_parameter() {
-    let error = run("maita f(x: Int, x: Int) -> Int { entul x; }").unwrap_err();
+    let error = run("maita f(x: Quanta, x: Quanta) -> Quanta { entul x; }").unwrap_err();
     assert!(error.contains("duplicate parameter `x`"), "{error}");
 }
 
 #[test]
 fn unit_function() {
-    assert_eq!(ok("maita log(x: Int) { quete(x); } log(1);"), "1\n");
-    let error = run("maita log(x: Int) { entul x; }").unwrap_err();
-    assert!(error.contains("expected `Unit`, found `Int`"), "{error}");
+    assert_eq!(ok("maita log(x: Quanta) { quete(x); } log(1);"), "1\n");
+    let error = run("maita log(x: Quanta) { entul x; }").unwrap_err();
+    assert!(error.contains("expected `Er`, found `Quanta`"), "{error}");
 }
 
 #[test]
