@@ -1,0 +1,64 @@
+# Build the VSIX for a vscode-v* tag and attach it to a GitHub Release.
+# Update package.json and README.md before you push the tag.
+name: Release VS Code Extension
+
+on:
+  push:
+    tags:
+      - "vscode-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: editors/vscode
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Read and check version
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="${GITHUB_REF_NAME#vscode-v}"
+          if [ "$VERSION" != "$TAG" ]; then
+            echo "package.json version ($VERSION) does not match tag ($TAG)" >&2
+            exit 1
+          fi
+          if ! grep -q "quenya-lang-${VERSION}.vsix" README.md; then
+            echo "README.md does not mention quenya-lang-${VERSION}.vsix" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Validate JSON
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('syntaxes/quenya.tmLanguage.json', 'utf8'))"
+          node -e "JSON.parse(require('fs').readFileSync('language-configuration.json', 'utf8'))"
+
+      - name: Package extension
+        run: npx --yes @vscode/vsce@4.0.0 package
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          VSIX="quenya-lang-${VERSION}.vsix"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$VSIX" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$VSIX" \
+              --title "VS Code extension $VERSION" \
+              --notes "Install from the attached VSIX file."
+          fi
