@@ -4,16 +4,19 @@
   },
   "brackets": [
     ["{", "}"],
-    ["(", ")"]
+    ["(", ")"],
+    ["[", "]"]
   ],
   "autoClosingPairs": [
     { "open": "{", "close": "}" },
     { "open": "(", "close": ")" },
+    { "open": "[", "close": "]" },
     { "open": "\"", "close": "\"", "notIn": ["string"] }
   ],
   "surroundingPairs": [
     ["{", "}"],
     ["(", ")"],
+    ["[", "]"],
     ["\"", "\""]
   ],
   "wordPattern": "(-?\\d+)|([A-Za-zÀ-ÖØ-öø-ÿ_][A-Za-zÀ-ÖØ-öø-ÿ0-9_]*)",

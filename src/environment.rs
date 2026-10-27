@@ -8,7 +8,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::value::Value;
+use crate::value::{Builtin, Value};
 
 /// A scope with a parent link.
 pub struct Environment {
@@ -17,12 +17,17 @@ pub struct Environment {
 }
 
 impl Environment {
-    /// Create the global scope.
+    /// Create the global scope with the builtin functions.
     pub fn new() -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(Self {
+        let env = Rc::new(RefCell::new(Self {
             values: HashMap::new(),
             parent: None,
-        }))
+        }));
+        env.borrow_mut()
+            .define("not".to_string(), Value::Builtin(Builtin::Len));
+        env.borrow_mut()
+            .define("napan".to_string(), Value::Builtin(Builtin::Push));
+        env
     }
 
     /// Create a child scope. The child keeps the parent alive through `Rc`.

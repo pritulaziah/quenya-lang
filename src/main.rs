@@ -60,7 +60,7 @@ fn repl() {
     let env = Environment::new();
     let mut buffer = String::new();
 
-    println!("Quenya 0.1. Enter `:q` to quit.");
+    println!("Quenya 0.2. Enter `:q` to quit.");
 
     loop {
         if buffer.is_empty() {

@@ -13,6 +13,7 @@
     { "include": "#numbers" },
     { "include": "#operators" },
     { "include": "#braces" },
+    { "include": "#brackets" },
     { "include": "#parens" },
     { "include": "#separators" }
   ],
@@ -49,7 +50,7 @@
     "keywords": {
       "patterns": [
         {
-          "match": "\\bquete\\b",
+          "match": "\\b(quete|not|napan)\\b",
           "name": "support.function.builtin.quenya"
         },
         {
@@ -57,7 +58,7 @@
           "name": "storage.type.quenya"
         },
         {
-          "match": "\\b(entul|qui|mal|ya)\\b",
+          "match": "\\b(entul|qui|mal|ya|ilya|mi|rac|lelya)\\b",
           "name": "keyword.control.quenya"
         },
         {
@@ -97,6 +98,18 @@
         {
           "match": "\\}",
           "name": "punctuation.section.block.end.quenya"
+        }
+      ]
+    },
+    "brackets": {
+      "patterns": [
+        {
+          "match": "\\[",
+          "name": "punctuation.section.brackets.begin.quenya"
+        },
+        {
+          "match": "\\]",
+          "name": "punctuation.section.brackets.end.quenya"
         }
       ]
     },

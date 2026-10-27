@@ -48,6 +48,15 @@ impl Parser {
         if self.match_token(&TokenKind::While) {
             return self.while_statement(line);
         }
+        if self.match_token(&TokenKind::For) {
+            return self.for_statement(line);
+        }
+        if self.match_token(&TokenKind::Break) {
+            return self.break_statement(line);
+        }
+        if self.match_token(&TokenKind::Continue) {
+            return self.continue_statement(line);
+        }
         if self.match_token(&TokenKind::Return) {
             return self.return_statement(line);
         }
@@ -66,13 +75,21 @@ impl Parser {
         if self.match_token(&TokenKind::Assign) {
             let value = self.expression()?;
             self.consume(&TokenKind::Semicolon, "expected `;` after assignment")?;
-            if let ExprKind::Variable(name) = expr.kind {
-                return Ok(Stmt {
+            return match expr.kind {
+                ExprKind::Variable(name) => Ok(Stmt {
                     kind: StmtKind::Assign { name, value },
                     line,
-                });
-            }
-            return Err(Error::new(line, "invalid assignment target"));
+                }),
+                ExprKind::Index { target, index } => Ok(Stmt {
+                    kind: StmtKind::IndexAssign {
+                        target: *target,
+                        index: *index,
+                        value,
+                    },
+                    line,
+                }),
+                _ => Err(Error::new(line, "invalid assignment target")),
+            };
         }
 
         self.consume(&TokenKind::Semicolon, "expected `;` after expression")?;
@@ -153,6 +170,38 @@ impl Parser {
         let body = self.block()?;
         Ok(Stmt {
             kind: StmtKind::While { condition, body },
+            line,
+        })
+    }
+
+    // `ilya name mi iterable { ... }` visits each list element.
+    fn for_statement(&mut self, line: usize) -> Result<Stmt, Error> {
+        let var = self.consume_ident("expected loop variable after `ilya`")?;
+        self.consume(&TokenKind::In, "expected `mi` after loop variable")?;
+        let iterable = self.expression()?;
+        let body = self.block()?;
+        Ok(Stmt {
+            kind: StmtKind::For {
+                var,
+                iterable,
+                body,
+            },
+            line,
+        })
+    }
+
+    fn break_statement(&mut self, line: usize) -> Result<Stmt, Error> {
+        self.consume(&TokenKind::Semicolon, "expected `;` after `rac`")?;
+        Ok(Stmt {
+            kind: StmtKind::Break,
+            line,
+        })
+    }
+
+    fn continue_statement(&mut self, line: usize) -> Result<Stmt, Error> {
+        self.consume(&TokenKind::Semicolon, "expected `;` after `lelya`")?;
+        Ok(Stmt {
+            kind: StmtKind::Continue,
             line,
         })
     }
@@ -323,28 +372,43 @@ impl Parser {
                 line,
             });
         }
-        self.call()
+        self.postfix()
     }
 
-    // A call is a primary expression followed by `(...)`.
-    fn call(&mut self) -> Result<Expr, Error> {
+    // A postfix expression is a primary followed by calls or indexes.
+    fn postfix(&mut self) -> Result<Expr, Error> {
         let mut expr = self.primary()?;
-        while self.match_token(&TokenKind::LParen) {
-            let line = self.previous().line;
-            let mut args = Vec::new();
-            if !self.check(&TokenKind::RParen) {
-                loop {
-                    args.push(self.expression()?);
-                    if !self.match_token(&TokenKind::Comma) {
-                        break;
+        loop {
+            if self.match_token(&TokenKind::LParen) {
+                let line = self.previous().line;
+                let mut args = Vec::new();
+                if !self.check(&TokenKind::RParen) {
+                    loop {
+                        args.push(self.expression()?);
+                        if !self.match_token(&TokenKind::Comma) {
+                            break;
+                        }
                     }
                 }
+                self.consume(&TokenKind::RParen, "expected `)` after arguments")?;
+                expr = Expr {
+                    kind: ExprKind::Call(Box::new(expr), args),
+                    line,
+                };
+            } else if self.match_token(&TokenKind::LBracket) {
+                let line = self.previous().line;
+                let index = self.expression()?;
+                self.consume(&TokenKind::RBracket, "expected `]` after index")?;
+                expr = Expr {
+                    kind: ExprKind::Index {
+                        target: Box::new(expr),
+                        index: Box::new(index),
+                    },
+                    line,
+                };
+            } else {
+                break;
             }
-            self.consume(&TokenKind::RParen, "expected `)` after arguments")?;
-            expr = Expr {
-                kind: ExprKind::Call(Box::new(expr), args),
-                line,
-            };
         }
         Ok(expr)
     }
@@ -387,6 +451,27 @@ impl Parser {
                 let expr = self.expression()?;
                 self.consume(&TokenKind::RParen, "expected `)` after expression")?;
                 Ok(expr)
+            }
+            TokenKind::LBracket => {
+                self.advance();
+                let mut elements = Vec::new();
+                if !self.check(&TokenKind::RBracket) {
+                    loop {
+                        elements.push(self.expression()?);
+                        if !self.match_token(&TokenKind::Comma) {
+                            break;
+                        }
+                        // Allow a trailing comma.
+                        if self.check(&TokenKind::RBracket) {
+                            break;
+                        }
+                    }
+                }
+                self.consume(&TokenKind::RBracket, "expected `]` after list elements")?;
+                Ok(Expr {
+                    kind: ExprKind::List(elements),
+                    line,
+                })
             }
             _ => Err(self.error("expected expression")),
         }

@@ -16,7 +16,7 @@ Install the extension from a VSIX file:
 
 1. Open the Extensions view with `Ctrl+Shift+X`.
 2. Open the `...` menu and select **Install from VSIX...**.
-3. Select `quenya-lang-0.1.4.vsix`.
+3. Select `quenya-lang-0.1.5.vsix`.
 4. Reload the window.
 
 ## Quick Start
@@ -35,8 +35,9 @@ quete(x);
 ## Features
 
 - Syntax highlighting for Quenya keywords, declarations, variables, functions, strings, numbers, and comments.
+- List literals, indexing, and `ilya ... mi ...` loops with `rac` and `lelya`.
 - Comment toggling with `#`.
-- Bracket matching and auto-closing for `{}`, `()`, and `""`.
+- Bracket matching and auto-closing for `{}`, `()`, `[]`, and `""`.
 - Indentation after `{`.
 - Word selection for identifiers with Quenya letters.
 

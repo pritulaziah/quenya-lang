@@ -73,6 +73,132 @@ fn while_loop() {
 }
 
 #[test]
+fn lists() {
+    assert_eq!(
+        ok("ea xs = [1, 2, 3]; quete(xs[0]); quete(xs[2]);"),
+        "1\n3\n"
+    );
+    assert_eq!(
+        ok("ea xs = [1, 2, 3]; xs[1] = 20; quete(xs);"),
+        "[1, 20, 3]\n"
+    );
+    assert_eq!(ok("quete([1, 2] + [3]);"), "[1, 2, 3]\n");
+    assert_eq!(
+        ok("quete([1, 2] == [1, 2]); quete([1] == [2]);"),
+        "naite\nla naite\n"
+    );
+    assert_eq!(ok(r#"quete(["a", "b"]);"#), "[\"a\", \"b\"]\n");
+}
+
+#[test]
+fn list_builtins() {
+    assert_eq!(
+        ok("ea xs = [1, 2]; quete(not(xs)); napan(xs, 3); quete(xs); quete(not(xs));"),
+        "2\n[1, 2, 3]\n3\n"
+    );
+    assert_eq!(ok(r#"quete(not("hello"));"#), "5\n");
+}
+
+#[test]
+fn nested_lists() {
+    assert_eq!(
+        ok("ea xs = [[1, 2], [3]]; quete(xs[0][1]); xs[0][0] = 9; quete(xs);"),
+        "2\n[[9, 2], [3]]\n"
+    );
+}
+
+#[test]
+fn list_self_reference() {
+    assert_eq!(ok("ea xs = [1]; xs[0] = xs; quete(xs);"), "[[...]]\n");
+}
+
+#[test]
+fn list_equality_cycles() {
+    assert_eq!(
+        ok("ea a = [1]; a[0] = a; ea b = [1]; b[0] = b; quete(a == b);"),
+        "naite\n"
+    );
+}
+
+#[test]
+fn for_loop() {
+    assert_eq!(ok("ilya x mi [1, 2, 3] { quete(x); }"), "1\n2\n3\n");
+    assert_eq!(
+        ok("ea x = 9; ilya x mi [1, 2] { quete(x); } quete(x);"),
+        "1\n2\n9\n"
+    );
+}
+
+#[test]
+fn loop_control() {
+    assert_eq!(
+        ok("ilya x mi [1, 2, 3, 4, 5] { qui x == 2 { lelya; } qui x == 4 { rac; } quete(x); }"),
+        "1\n3\n"
+    );
+    assert_eq!(
+        ok("ea i = 0; ya i < 5 { i = i + 1; qui i == 2 { lelya; } qui i == 4 { rac; } quete(i); }"),
+        "1\n3\n"
+    );
+}
+
+#[test]
+fn loop_control_outside_loop() {
+    let error = run("rac;").unwrap_err();
+    assert!(error.contains("outside loop"), "{error}");
+    let error = run("lelya;").unwrap_err();
+    assert!(error.contains("outside loop"), "{error}");
+    let error = run("maita f() { rac; } f();").unwrap_err();
+    assert!(error.contains("outside loop"), "{error}");
+}
+
+#[test]
+fn list_index_errors() {
+    let error = run("ea xs = [1]; quete(xs[1]);").unwrap_err();
+    assert!(error.contains("out of bounds"), "{error}");
+    let error = run("ea xs = [1]; quete(xs[-1]);").unwrap_err();
+    assert!(error.contains("out of range"), "{error}");
+    let error = run("ea xs = [1]; xs[1] = 2;").unwrap_err();
+    assert!(error.contains("out of bounds"), "{error}");
+}
+
+#[test]
+fn for_requires_list() {
+    let error = run("ilya x mi 5 { quete(x); }").unwrap_err();
+    assert!(error.contains("expected list"), "{error}");
+}
+
+#[test]
+fn builtin_type_errors() {
+    let error = run("quete(not(1));").unwrap_err();
+    assert!(error.contains("`not` expects a list or string"), "{error}");
+    let error = run("napan(1, 2);").unwrap_err();
+    assert!(error.contains("`napan` expects a list"), "{error}");
+}
+
+#[test]
+fn list_of_functions() {
+    assert_eq!(
+        ok("maita inc(x) { entul x + 1; } ea fs = [inc]; quete(fs[0](4));"),
+        "5\n"
+    );
+}
+
+#[test]
+fn for_loop_closures() {
+    let source = r#"
+        ea fs = [];
+        ilya x mi [1, 2, 3] {
+            maita f() { entul x; }
+            napan(fs, f);
+        }
+        quete(fs[0]());
+        quete(fs[1]());
+        quete(fs[2]());
+    "#;
+    assert_eq!(ok(source), "1\n2\n3\n");
+}
+
+#[test]
 fn functions() {
     assert_eq!(
         ok("maita add(a, b) { entul a + b; } quete(add(2, 3));"),

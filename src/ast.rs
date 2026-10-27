@@ -51,6 +51,8 @@ pub enum ExprKind {
     Str(String),
     /// A boolean literal. `naite` is the only literal. `la naite` is an expression.
     Bool(bool),
+    /// A list literal, for example `[1, 2, 3]`.
+    List(Vec<Expr>),
     /// A variable lookup, for example `x`.
     Variable(String),
     /// A unary operation.
@@ -59,6 +61,8 @@ pub enum ExprKind {
     Binary(Box<Expr>, BinaryOp, Box<Expr>),
     /// A function call, for example `add(2, 3)`.
     Call(Box<Expr>, Vec<Expr>),
+    /// An index lookup, for example `xs[0]`.
+    Index { target: Box<Expr>, index: Box<Expr> },
 }
 
 /// A statement with its source line.
@@ -75,6 +79,12 @@ pub enum StmtKind {
     Let { name: String, value: Expr },
     /// `name = value;`
     Assign { name: String, value: Expr },
+    /// `target[index] = value;`
+    IndexAssign {
+        target: Expr,
+        index: Expr,
+        value: Expr,
+    },
     /// `quete(value);`
     Print(Expr),
     /// `qui condition { ... } mal { ... }`
@@ -87,6 +97,16 @@ pub enum StmtKind {
     },
     /// `ya condition { ... }`
     While { condition: Expr, body: Vec<Stmt> },
+    /// `ilya name mi iterable { ... }`
+    For {
+        var: String,
+        iterable: Expr,
+        body: Vec<Stmt>,
+    },
+    /// `rac;`
+    Break,
+    /// `lelya;`
+    Continue,
     /// `maita name(params) { ... }`
     Function {
         name: String,
