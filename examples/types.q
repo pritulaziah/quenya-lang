@@ -1,11 +1,11 @@
 # Static types: function signatures and local inference.
-# Quanta = Int, Quetta = Str, Nanwa = Bool, Er = Unit, Técma = List.
-maita add(a: Quanta, b: Quanta) -> Quanta {
+# Notessë = Int, Quetta = Str, Nanwa = Bool, Er = Unit, Técma = List.
+maita add(a: Notessë, b: Notessë) -> Notessë {
     entul a + b;
 }
 
 # Local types are inferred, like Rust's `let`.
-ea x: Quanta = 5;
+ea x: Notessë = 5;
 ea y = add(x, 2);
 quete(y);
 

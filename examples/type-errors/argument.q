@@ -1,5 +1,5 @@
-# Type error: `f` expects `Quanta`, not `Quetta`.
-maita f(x: Quanta) -> Quanta {
+# Type error: `f` expects `Notessë`, not `Quetta`.
+maita f(x: Notessë) -> Notessë {
     entul x;
 }
 

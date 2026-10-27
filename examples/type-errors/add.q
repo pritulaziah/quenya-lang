@@ -1,2 +1,2 @@
-# Type error: `+` does not mix Quanta and Quetta.
+# Type error: `+` does not mix Notessë and Quetta.
 quete(1 + "a");

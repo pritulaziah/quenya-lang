@@ -1,9 +1,9 @@
 # Function types and higher-order functions.
-maita apply(f: maita(Quanta) -> Quanta, x: Quanta) -> Quanta {
+maita apply(f: maita(Notessë) -> Notessë, x: Notessë) -> Notessë {
     entul f(x);
 }
 
-maita inc(x: Quanta) -> Quanta {
+maita inc(x: Notessë) -> Notessë {
     entul x + 1;
 }
 

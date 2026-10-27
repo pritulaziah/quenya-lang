@@ -40,13 +40,13 @@ pub enum BinaryOp {
 /// A static type written in source code.
 ///
 /// The Rust variant names are English for code readability. The user-facing
-/// names are Quenya: `Quanta`, `Quetta`, `Nanwa`, `Er`, and `Técma<T>`.
+/// names are Quenya: `Notessë`, `Quetta`, `Nanwa`, `Er`, and `Técma<T>`.
 /// Rust checks types before a program runs. This language does the same in a
 /// separate pass. The types are deliberately small: there are no generics,
 /// traits, or lifetimes yet.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
-    /// Integer, written `Quanta` in source.
+    /// Integer, written `Notessë` in source.
     Int,
     /// String, written `Quetta` in source.
     Str,
@@ -56,14 +56,14 @@ pub enum Type {
     Unit,
     /// List, written `Técma<T>` in source.
     List(Box<Type>),
-    /// A function type, for example `maita(Quanta, Quetta) -> Nanwa`.
+    /// A function type, for example `maita(Notessë, Quetta) -> Nanwa`.
     Function(Vec<Type>, Box<Type>),
 }
 
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Type::Int => write!(f, "Quanta"),
+            Type::Int => write!(f, "Notessë"),
             Type::Str => write!(f, "Quetta"),
             Type::Bool => write!(f, "Nanwa"),
             Type::Unit => write!(f, "Er"),

@@ -9,7 +9,7 @@
 //! `not` and `napan` are special-cased until the language gets traits.
 //!
 //! The variants below use English names for code readability. `Display`
-//! prints the Quenya source names: `Quanta`, `Quetta`, `Nanwa`, `Er`,
+//! prints the Quenya source names: `Notessë`, `Quetta`, `Nanwa`, `Er`,
 //! and `Técma<T>`.
 
 use std::collections::{HashMap, HashSet};
@@ -51,7 +51,7 @@ impl InferType {
 impl fmt::Display for InferType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            InferType::Int => write!(f, "Quanta"),
+            InferType::Int => write!(f, "Notessë"),
             InferType::Str => write!(f, "Quetta"),
             InferType::Bool => write!(f, "Nanwa"),
             InferType::Unit => write!(f, "Er"),
@@ -415,7 +415,7 @@ impl TypeChecker {
         }
     }
 
-    // `+` works for Quanta, Quetta, and Técma. This helper keeps the type
+    // `+` works for Notessë, Quetta, and Técma. This helper keeps the type
     // errors specific instead of reporting a generic mismatch.
     fn infer_add(
         &mut self,

@@ -165,7 +165,7 @@ impl Parser {
 
     // Parse a type annotation.
     //
-    // The source names are Quenya: `Quanta` (Int), `Quetta` (Str),
+    // The source names are Quenya: `Notessë` (Int), `Quetta` (Str),
     // `Nanwa` (Bool), `Er` (Unit), `Técma<T>` (List), and function types
     // written as `maita(T, ...) -> R`. Diacritics and case are optional.
     fn parse_type(&mut self) -> Result<Type, Error> {
@@ -175,7 +175,7 @@ impl Parser {
                 self.advance();
                 let folded = crate::lexer::fold_keyword(&name).to_lowercase();
                 match folded.as_str() {
-                    "quanta" => Ok(Type::Int),
+                    "notesse" => Ok(Type::Int),
                     "quetta" => Ok(Type::Str),
                     "nanwa" => Ok(Type::Bool),
                     "er" => Ok(Type::Unit),

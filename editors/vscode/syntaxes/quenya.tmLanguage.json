@@ -73,7 +73,7 @@
       ]
     },
     "types": {
-      "match": "(?<![\\p{L}\\p{N}_])(Quanta|Quetta|Nanwa|Er|Técma|Tecma)(?![\\p{L}\\p{N}_])",
+      "match": "(?<![\\p{L}\\p{N}_])(Notessë|Notesse|Quetta|Nanwa|Er|Técma|Tecma)(?![\\p{L}\\p{N}_])",
       "name": "support.type.quenya"
     },
     "function-call": {
