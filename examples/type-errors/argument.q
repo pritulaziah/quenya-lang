@@ -1,6 +1,6 @@
-# Type error: `f` expects `Notessë`, not `Quetta`.
-maita f(x: Notessë) -> Notessë {
-    entul x;
+# Type error: `anta` expects `Notessë`, not `Quetta`.
+maita anta(quetta: Notessë) -> Notessë {
+    entul quetta;
 }
 
-quete(f("a"));
+quétë(anta("a"));

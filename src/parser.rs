@@ -123,7 +123,7 @@ impl Parser {
     }
 
     fn let_statement(&mut self, line: usize) -> Result<Stmt, Error> {
-        let name = self.consume_ident("expected variable name after `ea`")?;
+        let name = self.consume_ident("expected variable name after `essë`")?;
         // Rust infers local types, but a type annotation is allowed.
         let ty = if self.match_token(&TokenKind::Colon) {
             Some(self.parse_type()?)
@@ -244,7 +244,7 @@ impl Parser {
 
         let first_line = self.peek().line;
         let first = self.consume_ident("expected `immo` as the first method parameter")?;
-        if crate::lexer::fold_keyword(&first).to_lowercase() != "immo" {
+        if first.to_lowercase() != "immo" {
             return Err(Error::new(first_line, "method must start with `immo`"));
         }
         if self.check(&TokenKind::Colon) {
@@ -299,19 +299,19 @@ impl Parser {
     //
     // The source names are Quenya: `Notessë` (Int), `Quetta` (Str),
     // `Nanwa` (Bool), `Er` (Unit), `Técma<T>` (List), and function types
-    // written as `maita(T, ...) -> R`. Diacritics and case are optional.
+    // written as `maita(T, ...) -> R`. Type names are case-insensitive.
     fn parse_type(&mut self) -> Result<Type, Error> {
         let token = self.peek().clone();
         match token.kind {
             TokenKind::Ident(name) => {
                 self.advance();
-                let folded = crate::lexer::fold_keyword(&name).to_lowercase();
-                match folded.as_str() {
-                    "notesse" => Ok(Type::Int),
+                let lower = name.to_lowercase();
+                match lower.as_str() {
+                    "notessë" => Ok(Type::Int),
                     "quetta" => Ok(Type::Str),
                     "nanwa" => Ok(Type::Bool),
                     "er" => Ok(Type::Unit),
-                    "tecma" => {
+                    "técma" => {
                         self.consume(&TokenKind::Lt, "expected `<` after `Técma`")?;
                         let inner = self.parse_type()?;
                         self.consume(&TokenKind::Gt, "expected `>` after list type")?;
@@ -391,10 +391,10 @@ impl Parser {
         })
     }
 
-    // `ilya name mi iterable { ... }` visits each list element.
+    // `ilyë name mí iterable { ... }` visits each list element.
     fn for_statement(&mut self, line: usize) -> Result<Stmt, Error> {
-        let var = self.consume_ident("expected loop variable after `ilya`")?;
-        self.consume(&TokenKind::In, "expected `mi` after loop variable")?;
+        let var = self.consume_ident("expected loop variable after `ilyë`")?;
+        self.consume(&TokenKind::In, "expected `mí` after loop variable")?;
         let iterable = self.expression_with_struct(false)?;
         let body = self.block()?;
         Ok(Stmt {
@@ -437,10 +437,10 @@ impl Parser {
     }
 
     fn print_statement(&mut self, line: usize) -> Result<Stmt, Error> {
-        self.consume(&TokenKind::LParen, "expected `(` after `quete`")?;
+        self.consume(&TokenKind::LParen, "expected `(` after `quétë`")?;
         let value = self.expression()?;
         self.consume(&TokenKind::RParen, "expected `)` after print argument")?;
-        self.consume(&TokenKind::Semicolon, "expected `;` after `quete`")?;
+        self.consume(&TokenKind::Semicolon, "expected `;` after `quétë`")?;
         Ok(Stmt {
             kind: StmtKind::Print(value),
             line,
@@ -582,7 +582,7 @@ impl Parser {
         Ok(expr)
     }
 
-    // `la` and `-` are right-associative.
+    // `lá` and `-` are right-associative.
     fn unary(&mut self) -> Result<Expr, Error> {
         if self.match_token(&TokenKind::Not) {
             let line = self.previous().line;

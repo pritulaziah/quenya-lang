@@ -1,17 +1,17 @@
 # Static types: function signatures and local inference.
 # Notessë = Int, Quetta = Str, Nanwa = Bool, Er = Unit, Técma = List.
-maita add(a: Notessë, b: Notessë) -> Notessë {
+maita anta(a: Notessë, b: Notessë) -> Notessë {
     entul a + b;
 }
 
 # Local types are inferred, like Rust's `let`.
-ea x: Notessë = 5;
-ea y = add(x, 2);
-quete(y);
+essë nótië: Notessë = 5;
+essë quanta = anta(nótië, 2);
+quétë(quanta);
 
 # Empty lists need context or an annotation.
-ea names: Técma<Quetta> = [];
-napan(names, "Elen");
-napan(names, "Anar");
-quete(names);
-quete(not(names));
+essë essi: Técma<Quetta> = [];
+napan(essi, "Elen");
+napan(essi, "Anar");
+quétë(essi);
+quétë(notië(essi));

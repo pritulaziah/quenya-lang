@@ -1,2 +1,2 @@
 # Type error: an empty list has no element type.
-ea xs = [];
+essë tengwar = [];

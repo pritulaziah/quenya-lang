@@ -16,7 +16,7 @@ Install the extension from a VSIX file:
 
 1. Open the Extensions view with `Ctrl+Shift+X`.
 2. Open the `...` menu and select **Install from VSIX...**.
-3. Select `quenya-lang-0.1.7.vsix`.
+3. Select `quenya-lang-0.1.8.vsix`.
 4. Reload the window.
 
 ## Quick Start
@@ -26,8 +26,8 @@ Install the extension from a VSIX file:
 3. Add this program:
 
 ```text
-ea x = 5;
-quete(x);
+essë quetta = "Elen";
+quétë(quetta);
 ```
 
 4. Open the file in VS Code. The editor highlights keywords, variables, numbers, and punctuation.
@@ -35,7 +35,7 @@ quete(x);
 ## Features
 
 - Syntax highlighting for Quenya keywords, declarations, variables, functions, strings, numbers, and comments.
-- List literals, indexing, and `ilya ... mi ...` loops with `rac` and `lelya`.
+- List literals, indexing, and `ilyë ... mí ...` loops with `rac` and `lelya`.
 - Type annotations for function parameters, return types, and local variables.
 - Struct and method syntax with `canta`, `carasta`, and `immo`.
 - Comment toggling with `#`.

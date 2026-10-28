@@ -24,7 +24,7 @@ impl Environment {
             parent: None,
         }));
         env.borrow_mut()
-            .define("not".to_string(), Value::Builtin(Builtin::Len));
+            .define("notië".to_string(), Value::Builtin(Builtin::Len));
         env.borrow_mut()
             .define("napan".to_string(), Value::Builtin(Builtin::Push));
         env

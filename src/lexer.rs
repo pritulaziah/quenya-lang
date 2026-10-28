@@ -124,7 +124,7 @@ pub fn tokenize(source: &str) -> Result<Vec<Token>, Error> {
                 tokens.push(Token { kind, line });
             }
             '!' => {
-                // A lone `!` is not an operator. The language uses `la`.
+                // A lone `!` is not an operator. The language uses `lá`.
                 let line = lexer.line;
                 lexer.advance();
                 if lexer.match_char('=') {
@@ -135,7 +135,7 @@ pub fn tokenize(source: &str) -> Result<Vec<Token>, Error> {
                 } else {
                     return Err(Error::new(
                         line,
-                        "unexpected character `!`; use `la` for negation",
+                        "unexpected character `!`; use `lá` for negation",
                     ));
                 }
             }
@@ -286,22 +286,23 @@ impl Lexer {
             }
         }
 
-        let kind = match fold_keyword(&text).as_str() {
-            "ea" => TokenKind::Let,
+        // Keywords use their ornate Quenya spelling. There are no aliases.
+        let kind = match text.as_str() {
+            "essë" => TokenKind::Let,
             "maita" => TokenKind::Fn,
             "entul" => TokenKind::Return,
             "qui" => TokenKind::If,
             "mal" => TokenKind::Else,
-            "ya" => TokenKind::While,
-            "ilya" => TokenKind::For,
-            "mi" => TokenKind::In,
+            "yallumë" => TokenKind::While,
+            "ilyë" => TokenKind::For,
+            "mí" => TokenKind::In,
             "rac" => TokenKind::Break,
             "lelya" => TokenKind::Continue,
-            "naite" => TokenKind::True,
+            "naitë" => TokenKind::True,
             "ar" => TokenKind::And,
             "hya" => TokenKind::Or,
-            "la" => TokenKind::Not,
-            "quete" => TokenKind::Print,
+            "lá" => TokenKind::Not,
+            "quétë" => TokenKind::Print,
             "canta" => TokenKind::Struct,
             "carasta" => TokenKind::Impl,
             _ => TokenKind::Ident(text),
@@ -316,21 +317,4 @@ fn is_ident_start(c: char) -> bool {
 
 fn is_ident_continue(c: char) -> bool {
     c == '_' || c.is_alphanumeric()
-}
-
-// Fold Quenya diacritics for keyword matching.
-// `ëa` and `ea` are the same keyword. `naitë` and `naite` are also the same.
-// The parser also uses this to accept type names with or without diacritics.
-pub(crate) fn fold_keyword(text: &str) -> String {
-    text.chars()
-        .filter(|c| !matches!(c, '\u{0300}'..='\u{036f}'))
-        .map(|c| match c {
-            'á' | 'à' | 'â' | 'ä' => 'a',
-            'é' | 'è' | 'ê' | 'ë' => 'e',
-            'í' | 'ì' | 'î' | 'ï' => 'i',
-            'ó' | 'ò' | 'ô' | 'ö' => 'o',
-            'ú' | 'ù' | 'û' | 'ü' => 'u',
-            other => other,
-        })
-        .collect()
 }

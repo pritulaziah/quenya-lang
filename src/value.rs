@@ -29,7 +29,7 @@ enum SeenValue {
 /// A builtin function.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Builtin {
-    /// `not(value)` returns the length of a list or string.
+    /// `notië(value)` returns the length of a list or string.
     Len,
     /// `napan(list, value)` appends a value to a list.
     Push,
@@ -39,7 +39,7 @@ impl Builtin {
     /// The name used in source code.
     pub fn name(self) -> &'static str {
         match self {
-            Builtin::Len => "not",
+            Builtin::Len => "notië",
             Builtin::Push => "napan",
         }
     }
@@ -145,8 +145,8 @@ fn fmt_value(
             }
         }
         // Print booleans with the language keywords.
-        Value::Bool(true) => write!(f, "naite"),
-        Value::Bool(false) => write!(f, "la naite"),
+        Value::Bool(true) => write!(f, "naitë"),
+        Value::Bool(false) => write!(f, "lá naitë"),
         Value::Function(function) => write!(f, "<maita {}>", function.name),
         Value::Builtin(builtin) => write!(f, "<builtin {}>", builtin.name()),
         Value::List(list) => {

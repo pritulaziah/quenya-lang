@@ -44,7 +44,7 @@
       }
     },
     "variable-declaration": {
-      "match": "\\b(ea)[ \\t]+([\\p{L}_][\\p{L}\\p{N}_]*)",
+      "match": "(?<![\\p{L}\\p{N}_])(essë)[ \\t]+([\\p{L}_][\\p{L}\\p{N}_]*)",
       "captures": {
         "1": { "name": "storage.type.quenya" },
         "2": { "name": "variable.other.quenya" }
@@ -67,33 +67,33 @@
     "keywords": {
       "patterns": [
         {
-          "match": "\\b(quete|not|napan)\\b",
+          "match": "(?<![\\p{L}\\p{N}_])(quétë|notië|napan)(?![\\p{L}\\p{N}_])",
           "name": "support.function.builtin.quenya"
         },
         {
-          "match": "\\b(ea|maita|canta|carasta)\\b",
+          "match": "(?<![\\p{L}\\p{N}_])(essë|maita|canta|carasta)(?![\\p{L}\\p{N}_])",
           "name": "storage.type.quenya"
         },
         {
-          "match": "\\b(entul|qui|mal|ya|ilya|mi|rac|lelya)\\b",
+          "match": "(?<![\\p{L}\\p{N}_])(entul|qui|mal|yallumë|ilyë|mí|rac|lelya)(?![\\p{L}\\p{N}_])",
           "name": "keyword.control.quenya"
         },
         {
-          "match": "\\bimmo\\b",
+          "match": "(?<![\\p{L}\\p{N}_])immo(?![\\p{L}\\p{N}_])",
           "name": "variable.language.self.quenya"
         },
         {
-          "match": "\\bnaite\\b",
+          "match": "(?<![\\p{L}\\p{N}_])(naitë)(?![\\p{L}\\p{N}_])",
           "name": "constant.language.boolean.quenya"
         },
         {
-          "match": "\\b(la|ar|hya)\\b",
+          "match": "(?<![\\p{L}\\p{N}_])(lá|ar|hya)(?![\\p{L}\\p{N}_])",
           "name": "keyword.operator.logical.quenya"
         }
       ]
     },
     "types": {
-      "match": "(?<![\\p{L}\\p{N}_])(Notessë|Notesse|Quetta|Nanwa|Er|Técma|Tecma)(?![\\p{L}\\p{N}_])",
+      "match": "(?<![\\p{L}\\p{N}_])(Notessë|Quetta|Nanwa|Er|Técma)(?![\\p{L}\\p{N}_])",
       "name": "support.type.quenya"
     },
     "function-call": {

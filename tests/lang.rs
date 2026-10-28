@@ -31,39 +31,39 @@ fn ok(source: &str) -> String {
 
 #[test]
 fn arithmetic() {
-    assert_eq!(ok("quete(1 + 2 * 3);"), "7\n");
-    assert_eq!(ok("quete((1 + 2) * 3);"), "9\n");
-    assert_eq!(ok("quete(-5 + 2);"), "-3\n");
-    assert_eq!(ok("quete(7 / 2);"), "3\n");
-    assert_eq!(ok("quete(7 % 2);"), "1\n");
+    assert_eq!(ok("quétë(1 + 2 * 3);"), "7\n");
+    assert_eq!(ok("quétë((1 + 2) * 3);"), "9\n");
+    assert_eq!(ok("quétë(-5 + 2);"), "-3\n");
+    assert_eq!(ok("quétë(7 / 2);"), "3\n");
+    assert_eq!(ok("quétë(7 % 2);"), "1\n");
 }
 
 #[test]
 fn variables_and_assignment() {
-    assert_eq!(ok("ea x = 5; x = x + 2; quete(x);"), "7\n");
+    assert_eq!(ok("essë x = 5; x = x + 2; quétë(x);"), "7\n");
 }
 
 #[test]
 fn strings() {
-    assert_eq!(ok(r#"quete("a" + "b");"#), "ab\n");
-    assert_eq!(ok(r#"quete("line\nbreak");"#), "line\nbreak\n");
+    assert_eq!(ok(r#"quétë("a" + "b");"#), "ab\n");
+    assert_eq!(ok(r#"quétë("line\nbreak");"#), "line\nbreak\n");
 }
 
 #[test]
 fn booleans() {
-    assert_eq!(ok("quete(naite); quete(la naite);"), "naite\nla naite\n");
-    assert_eq!(ok("quete(1 < 2); quete(1 == 2);"), "naite\nla naite\n");
+    assert_eq!(ok("quétë(naitë); quétë(lá naitë);"), "naitë\nlá naitë\n");
+    assert_eq!(ok("quétë(1 < 2); quétë(1 == 2);"), "naitë\nlá naitë\n");
 }
 
 #[test]
 fn if_else() {
     assert_eq!(
-        ok(r#"ea x = 3; qui x > 2 { quete("big"); } mal { quete("small"); }"#),
+        ok(r#"essë x = 3; qui x > 2 { quétë("big"); } mal { quétë("small"); }"#),
         "big\n"
     );
     assert_eq!(
         ok(
-            r#"ea x = 2; qui x > 2 { quete("big"); } mal qui x == 2 { quete("two"); } mal { quete("small"); }"#
+            r#"essë x = 2; qui x > 2 { quétë("big"); } mal qui x == 2 { quétë("two"); } mal { quétë("small"); }"#
         ),
         "two\n"
     );
@@ -72,7 +72,7 @@ fn if_else() {
 #[test]
 fn while_loop() {
     assert_eq!(
-        ok("ea i = 0; ya i < 3 { quete(i); i = i + 1; }"),
+        ok("essë i = 0; yallumë i < 3 { quétë(i); i = i + 1; }"),
         "0\n1\n2\n"
     );
 }
@@ -80,34 +80,34 @@ fn while_loop() {
 #[test]
 fn lists() {
     assert_eq!(
-        ok("ea xs = [1, 2, 3]; quete(xs[0]); quete(xs[2]);"),
+        ok("essë xs = [1, 2, 3]; quétë(xs[0]); quétë(xs[2]);"),
         "1\n3\n"
     );
     assert_eq!(
-        ok("ea xs = [1, 2, 3]; xs[1] = 20; quete(xs);"),
+        ok("essë xs = [1, 2, 3]; xs[1] = 20; quétë(xs);"),
         "[1, 20, 3]\n"
     );
-    assert_eq!(ok("quete([1, 2] + [3]);"), "[1, 2, 3]\n");
+    assert_eq!(ok("quétë([1, 2] + [3]);"), "[1, 2, 3]\n");
     assert_eq!(
-        ok("quete([1, 2] == [1, 2]); quete([1] == [2]);"),
-        "naite\nla naite\n"
+        ok("quétë([1, 2] == [1, 2]); quétë([1] == [2]);"),
+        "naitë\nlá naitë\n"
     );
-    assert_eq!(ok(r#"quete(["a", "b"]);"#), "[\"a\", \"b\"]\n");
+    assert_eq!(ok(r#"quétë(["a", "b"]);"#), "[\"a\", \"b\"]\n");
 }
 
 #[test]
 fn list_builtins() {
     assert_eq!(
-        ok("ea xs = [1, 2]; quete(not(xs)); napan(xs, 3); quete(xs); quete(not(xs));"),
+        ok("essë xs = [1, 2]; quétë(notië(xs)); napan(xs, 3); quétë(xs); quétë(notië(xs));"),
         "2\n[1, 2, 3]\n3\n"
     );
-    assert_eq!(ok(r#"quete(not("hello"));"#), "5\n");
+    assert_eq!(ok(r#"quétë(notië("hello"));"#), "5\n");
 }
 
 #[test]
 fn nested_lists() {
     assert_eq!(
-        ok("ea xs = [[1, 2], [3]]; quete(xs[0][1]); xs[0][0] = 9; quete(xs);"),
+        ok("essë xs = [[1, 2], [3]]; quétë(xs[0][1]); xs[0][0] = 9; quétë(xs);"),
         "2\n[[9, 2], [3]]\n"
     );
 }
@@ -115,7 +115,7 @@ fn nested_lists() {
 #[test]
 fn recursive_list_is_rejected() {
     // Rust also rejects a value that contains itself without indirection.
-    let error = run("ea xs = [1]; xs[0] = xs;").unwrap_err();
+    let error = run("essë xs = [1]; xs[0] = xs;").unwrap_err();
     assert!(
         error.contains("expected `Notessë`, found `Técma<Notessë>`"),
         "{error}"
@@ -124,15 +124,15 @@ fn recursive_list_is_rejected() {
 
 #[test]
 fn infinite_type_is_rejected() {
-    let error = run("ea xs = []; napan(xs, xs);").unwrap_err();
+    let error = run("essë xs = []; napan(xs, xs);").unwrap_err();
     assert!(error.contains("infinite type"), "{error}");
 }
 
 #[test]
 fn for_loop() {
-    assert_eq!(ok("ilya x mi [1, 2, 3] { quete(x); }"), "1\n2\n3\n");
+    assert_eq!(ok("ilyë x mí [1, 2, 3] { quétë(x); }"), "1\n2\n3\n");
     assert_eq!(
-        ok("ea x = 9; ilya x mi [1, 2] { quete(x); } quete(x);"),
+        ok("essë x = 9; ilyë x mí [1, 2] { quétë(x); } quétë(x);"),
         "1\n2\n9\n"
     );
 }
@@ -140,11 +140,11 @@ fn for_loop() {
 #[test]
 fn loop_control() {
     assert_eq!(
-        ok("ilya x mi [1, 2, 3, 4, 5] { qui x == 2 { lelya; } qui x == 4 { rac; } quete(x); }"),
+        ok("ilyë x mí [1, 2, 3, 4, 5] { qui x == 2 { lelya; } qui x == 4 { rac; } quétë(x); }"),
         "1\n3\n"
     );
     assert_eq!(
-        ok("ea i = 0; ya i < 5 { i = i + 1; qui i == 2 { lelya; } qui i == 4 { rac; } quete(i); }"),
+        ok("essë i = 0; yallumë i < 5 { i = i + 1; qui i == 2 { lelya; } qui i == 4 { rac; } quétë(i); }"),
         "1\n3\n"
     );
 }
@@ -161,24 +161,27 @@ fn loop_control_outside_loop() {
 
 #[test]
 fn list_index_errors() {
-    let error = run("ea xs = [1]; quete(xs[1]);").unwrap_err();
+    let error = run("essë xs = [1]; quétë(xs[1]);").unwrap_err();
     assert!(error.contains("out of bounds"), "{error}");
-    let error = run("ea xs = [1]; quete(xs[-1]);").unwrap_err();
+    let error = run("essë xs = [1]; quétë(xs[-1]);").unwrap_err();
     assert!(error.contains("out of range"), "{error}");
-    let error = run("ea xs = [1]; xs[1] = 2;").unwrap_err();
+    let error = run("essë xs = [1]; xs[1] = 2;").unwrap_err();
     assert!(error.contains("out of bounds"), "{error}");
 }
 
 #[test]
 fn for_requires_list() {
-    let error = run("ilya x mi 5 { quete(x); }").unwrap_err();
+    let error = run("ilyë x mí 5 { quétë(x); }").unwrap_err();
     assert!(error.contains("expected a list"), "{error}");
 }
 
 #[test]
 fn builtin_type_errors() {
-    let error = run("quete(not(1));").unwrap_err();
-    assert!(error.contains("`not` expects a list or string"), "{error}");
+    let error = run("quétë(notië(1));").unwrap_err();
+    assert!(
+        error.contains("`notië` expects a list or string"),
+        "{error}"
+    );
     let error = run("napan(1, 2);").unwrap_err();
     assert!(error.contains("`napan` expects a list"), "{error}");
 }
@@ -186,7 +189,7 @@ fn builtin_type_errors() {
 #[test]
 fn list_of_functions() {
     assert_eq!(
-        ok("maita inc(x: Notessë) -> Notessë { entul x + 1; } ea fs = [inc]; quete(fs[0](4));"),
+        ok("maita inc(x: Notessë) -> Notessë { entul x + 1; } essë fs = [inc]; quétë(fs[0](4));"),
         "5\n"
     );
 }
@@ -194,14 +197,14 @@ fn list_of_functions() {
 #[test]
 fn for_loop_closures() {
     let source = r#"
-        ea fs = [];
-        ilya x mi [1, 2, 3] {
+        essë fs = [];
+        ilyë x mí [1, 2, 3] {
             maita f() -> Notessë { entul x; }
             napan(fs, f);
         }
-        quete(fs[0]());
-        quete(fs[1]());
-        quete(fs[2]());
+        quétë(fs[0]());
+        quétë(fs[1]());
+        quétë(fs[2]());
     "#;
     assert_eq!(ok(source), "1\n2\n3\n");
 }
@@ -209,7 +212,7 @@ fn for_loop_closures() {
 #[test]
 fn functions() {
     assert_eq!(
-        ok("maita add(a: Notessë, b: Notessë) -> Notessë { entul a + b; } quete(add(2, 3));"),
+        ok("maita add(a: Notessë, b: Notessë) -> Notessë { entul a + b; } quétë(add(2, 3));"),
         "5\n"
     );
 }
@@ -217,7 +220,7 @@ fn functions() {
 #[test]
 fn recursion() {
     assert_eq!(
-        ok("maita fib(n: Notessë) -> Notessë { qui n < 2 { entul n; } entul fib(n - 1) + fib(n - 2); } quete(fib(10));"),
+        ok("maita fib(n: Notessë) -> Notessë { qui n < 2 { entul n; } entul fib(n - 1) + fib(n - 2); } quétë(fib(10));"),
         "55\n"
     );
 }
@@ -231,64 +234,72 @@ fn closures() {
             }
             entul add;
         }
-        ea add5 = adder(5);
-        quete(add5(3));
+        essë add5 = adder(5);
+        quétë(add5(3));
     "#;
     assert_eq!(ok(source), "8\n");
 }
 
 #[test]
 fn print_inside_function() {
-    assert_eq!(ok(r#"maita say() { quete("x"); } say();"#), "x\n");
+    assert_eq!(ok(r#"maita say() { quétë("x"); } say();"#), "x\n");
 }
 
 #[test]
 fn bare_return() {
-    assert_eq!(ok("maita f() { entul; } quete(f());"), "()\n");
+    assert_eq!(ok("maita f() { entul; } quétë(f());"), "()\n");
 }
 
 #[test]
 fn scopes() {
-    assert_eq!(ok("ea x = 1; { ea x = 2; quete(x); } quete(x);"), "2\n1\n");
+    assert_eq!(
+        ok("essë x = 1; { essë x = 2; quétë(x); } quétë(x);"),
+        "2\n1\n"
+    );
 }
 
 #[test]
 fn short_circuit() {
     let source = r#"
-        maita boom() -> Nanwa { quete("boom"); entul naite; }
-        quete(la naite ar boom());
-        quete(naite hya boom());
+        maita boom() -> Nanwa { quétë("boom"); entul naitë; }
+        quétë(lá naitë ar boom());
+        quétë(naitë hya boom());
     "#;
-    assert_eq!(ok(source), "la naite\nnaite\n");
+    assert_eq!(ok(source), "lá naitë\nnaitë\n");
 }
 
 #[test]
 fn comments() {
-    assert_eq!(ok("# comment\nquete(1); # trailing\n"), "1\n");
+    assert_eq!(ok("# comment\nquétë(1); # trailing\n"), "1\n");
 }
 
 #[test]
 fn quenya_spellings() {
-    assert_eq!(ok("ëa x = 1; quete(x);"), "1\n");
-    assert_eq!(ok("quete(naitë);"), "naite\n");
-    assert_eq!(ok("ea i = 0; yá i < 2 { quete(i); i = i + 1; }"), "0\n1\n");
+    assert_eq!(ok("essë x = 1; quétë(x);"), "1\n");
+    assert_eq!(ok("quétë(naitë);"), "naitë\n");
+    assert_eq!(
+        ok("essë i = 0; yallumë i < 2 { quétë(i); i = i + 1; }"),
+        "0\n1\n"
+    );
+    assert_eq!(ok("essë xs = [1, 2]; ilyë x mí xs { quétë(x); }"), "1\n2\n");
+    assert_eq!(ok("essë xs = [1, 2]; quétë(notië(xs));"), "2\n");
 }
 
 #[test]
 fn division_by_zero() {
-    let error = run("quete(1 / 0);").unwrap_err();
+    let error = run("quétë(1 / 0);").unwrap_err();
     assert!(error.contains("division by zero"), "{error}");
 }
 
 #[test]
 fn undefined_variable() {
-    let error = run("quete(y);").unwrap_err();
+    let error = run("quétë(y);").unwrap_err();
     assert!(error.contains("undefined variable `y`"), "{error}");
 }
 
 #[test]
 fn condition_must_be_boolean() {
-    let error = run("ea x = 1; qui x { quete(x); }").unwrap_err();
+    let error = run("essë x = 1; qui x { quétë(x); }").unwrap_err();
     assert!(error.contains("expected boolean"), "{error}");
 }
 
@@ -300,14 +311,14 @@ fn arity_error() {
 
 #[test]
 fn type_error() {
-    let error = run(r#"quete(1 + "a");"#).unwrap_err();
+    let error = run(r#"quétë(1 + "a");"#).unwrap_err();
     assert!(error.contains("cannot add"), "{error}");
 }
 
 #[test]
 fn type_annotations() {
-    assert_eq!(ok("ea x: Notessë = 5; quete(x);"), "5\n");
-    let error = run(r#"ea x: Quetta = 1;"#).unwrap_err();
+    assert_eq!(ok("essë x: Notessë = 5; quétë(x);"), "5\n");
+    let error = run(r#"essë x: Quetta = 1;"#).unwrap_err();
     assert!(
         error.contains("expected `Quetta`, found `Notessë`"),
         "{error}"
@@ -316,18 +327,17 @@ fn type_annotations() {
 
 #[test]
 fn quenya_type_names() {
-    assert_eq!(ok("ea x: Notessë = 5; quete(x);"), "5\n");
-    // Type names are case-insensitive and accept ASCII spellings.
-    assert_eq!(ok("ea y: notesse = 6; quete(y);"), "6\n");
-    assert_eq!(ok(r#"ea s: Quetta = "a"; quete(s);"#), "a\n");
-    assert_eq!(ok("ea b: Nanwa = naitë; quete(b);"), "naite\n");
-    assert_eq!(ok("ea xs: Técma<Notessë> = [1, 2]; quete(xs);"), "[1, 2]\n");
+    assert_eq!(ok("essë x: Notessë = 5; quétë(x);"), "5\n");
+    // Type names are case-insensitive. The diacritics are required.
+    assert_eq!(ok("essë y: notessë = 6; quétë(y);"), "6\n");
+    assert_eq!(ok(r#"essë s: Quetta = "a"; quétë(s);"#), "a\n");
+    assert_eq!(ok("essë b: Nanwa = naitë; quétë(b);"), "naitë\n");
     assert_eq!(
-        ok(r#"ea xs: Tecma<Quetta> = ["a"]; quete(xs);"#),
-        "[\"a\"]\n"
+        ok("essë xs: técma<Notessë> = [1, 2]; quétë(xs);"),
+        "[1, 2]\n"
     );
     assert_eq!(
-        ok("maita log(x: Notessë) { quete(x); } ea u: Er = log(1); quete(u);"),
+        ok("maita log(x: Notessë) { quétë(x); } essë u: Er = log(1); quétë(u);"),
         "1\n()\n"
     );
 }
@@ -335,10 +345,10 @@ fn quenya_type_names() {
 #[test]
 fn function_signatures() {
     assert_eq!(
-        ok("maita add(a: Notessë, b: Notessë) -> Notessë { entul a + b; } quete(add(2, 3));"),
+        ok("maita add(a: Notessë, b: Notessë) -> Notessë { entul a + b; } quétë(add(2, 3));"),
         "5\n"
     );
-    let error = run(r#"maita f(x: Notessë) -> Notessë { entul x; } quete(f("a"));"#).unwrap_err();
+    let error = run(r#"maita f(x: Notessë) -> Notessë { entul x; } quétë(f("a"));"#).unwrap_err();
     assert!(
         error.contains("expected `Notessë`, found `Quetta`"),
         "{error}"
@@ -358,35 +368,35 @@ fn missing_return() {
         "{error}"
     );
     assert_eq!(
-        ok("maita f() -> Notessë { qui naite { entul 1; } mal { entul 2; } } quete(f());"),
+        ok("maita f() -> Notessë { qui naitë { entul 1; } mal { entul 2; } } quétë(f());"),
         "1\n"
     );
 }
 
 #[test]
 fn empty_list_inference() {
-    assert_eq!(ok("ea xs = []; napan(xs, 1); quete(xs);"), "[1]\n");
-    let error = run("ea xs = [];").unwrap_err();
+    assert_eq!(ok("essë xs = []; napan(xs, 1); quétë(xs);"), "[1]\n");
+    let error = run("essë xs = [];").unwrap_err();
     assert!(error.contains("cannot infer the type"), "{error}");
     assert_eq!(
-        ok("ea xs: Técma<Notessë> = []; napan(xs, 1); quete(xs);"),
+        ok("essë xs: Técma<Notessë> = []; napan(xs, 1); quétë(xs);"),
         "[1]\n"
     );
 }
 
 #[test]
 fn list_type_errors() {
-    let error = run(r#"ea xs = [1, "a"];"#).unwrap_err();
+    let error = run(r#"essë xs = [1, "a"];"#).unwrap_err();
     assert!(
         error.contains("expected `Notessë`, found `Quetta`"),
         "{error}"
     );
-    let error = run(r#"ea xs = [1]; quete(xs["a"]);"#).unwrap_err();
+    let error = run(r#"essë xs = [1]; quétë(xs["a"]);"#).unwrap_err();
     assert!(
         error.contains("expected `Notessë`, found `Quetta`"),
         "{error}"
     );
-    let error = run(r#"ea xs = [1]; xs[0] = "a";"#).unwrap_err();
+    let error = run(r#"essë xs = [1]; xs[0] = "a";"#).unwrap_err();
     assert!(
         error.contains("expected `Notessë`, found `Quetta`"),
         "{error}"
@@ -407,7 +417,7 @@ fn higher_order_functions() {
         maita inc(x: Notessë) -> Notessë {
             entul x + 1;
         }
-        quete(apply(inc, 4));
+        quétë(apply(inc, 4));
     "#;
     assert_eq!(ok(source), "5\n");
 }
@@ -415,7 +425,7 @@ fn higher_order_functions() {
 #[test]
 fn function_type_mismatch() {
     let error =
-        run(r#"maita f(x: Notessë) -> Notessë { entul x; } ea g: maita(Quetta) -> Quetta = f;"#)
+        run(r#"maita f(x: Notessë) -> Notessë { entul x; } essë g: maita(Quetta) -> Quetta = f;"#)
             .unwrap_err();
     assert!(
         error.contains("expected `Quetta`, found `Notessë`"),
@@ -425,9 +435,9 @@ fn function_type_mismatch() {
 
 #[test]
 fn builtin_as_value() {
-    assert_eq!(ok(r#"ea f = not; quete(f("hello"));"#), "5\n");
+    assert_eq!(ok(r#"essë f = notië; quétë(f("hello"));"#), "5\n");
     assert_eq!(
-        ok("ea f = napan; ea xs = [1]; f(xs, 2); quete(xs);"),
+        ok("essë f = napan; essë xs = [1]; f(xs, 2); quétë(xs);"),
         "[1, 2]\n"
     );
 }
@@ -435,7 +445,7 @@ fn builtin_as_value() {
 #[test]
 fn shadowing_builtin() {
     assert_eq!(
-        ok("maita not(x: Notessë) -> Notessë { entul x; } quete(not(1));"),
+        ok("maita notië(x: Notessë) -> Notessë { entul x; } quétë(notië(1));"),
         "1\n"
     );
 }
@@ -448,14 +458,14 @@ fn duplicate_parameter() {
 
 #[test]
 fn unit_function() {
-    assert_eq!(ok("maita log(x: Notessë) { quete(x); } log(1);"), "1\n");
+    assert_eq!(ok("maita log(x: Notessë) { quétë(x); } log(1);"), "1\n");
     let error = run("maita log(x: Notessë) { entul x; }").unwrap_err();
     assert!(error.contains("expected `Er`, found `Notessë`"), "{error}");
 }
 
 #[test]
 fn empty_list_not_is_rejected() {
-    let error = run("quete(not([]));").unwrap_err();
+    let error = run("quétë(notië([]));").unwrap_err();
     assert!(error.contains("cannot infer"), "{error}");
 }
 
@@ -463,11 +473,11 @@ fn empty_list_not_is_rejected() {
 fn structs_and_fields() {
     let source = r#"
         canta Point { x: Notessë, y: Notessë }
-        ea p = Point { x: 1, y: 2 };
-        quete(p.x);
+        essë p = Point { x: 1, y: 2 };
+        quétë(p.x);
         p.x = 10;
-        quete(p.x);
-        quete(p);
+        quétë(p.x);
+        quétë(p);
     "#;
     assert_eq!(ok(source), "1\n10\nPoint { x: 10, y: 2 }\n");
 }
@@ -477,14 +487,14 @@ fn nested_structs() {
     let source = r#"
         canta Point { x: Notessë, y: Notessë }
         canta Line { start: Point, end: Point }
-        ea l = Line {
+        essë l = Line {
             start: Point { x: 1, y: 2 },
             end: Point { x: 3, y: 4 },
         };
-        quete(l.start.y);
+        quétë(l.start.y);
         l.start.x = 10;
-        quete(l.start.x);
-        quete(l);
+        quétë(l.start.x);
+        quétë(l);
     "#;
     assert_eq!(
         ok(source),
@@ -495,7 +505,7 @@ fn nested_structs() {
 #[test]
 fn empty_struct() {
     assert_eq!(
-        ok("canta Empty {} ea e = Empty {}; quete(e);"),
+        ok("canta Empty {} essë e = Empty {}; quétë(e);"),
         "Empty {}\n"
     );
 }
@@ -513,10 +523,10 @@ fn struct_methods() {
                 entul immo.x + immo.y;
             }
         }
-        ea p = Point { x: 1, y: 2 };
+        essë p = Point { x: 1, y: 2 };
         p.move(10, 20);
-        quete(p.sum());
-        quete(p);
+        quétë(p.sum());
+        quétë(p);
     "#;
     assert_eq!(ok(source), "33\nPoint { x: 11, y: 22 }\n");
 }
@@ -533,8 +543,8 @@ fn method_calls_method() {
                 entul immo.sum() * 2;
             }
         }
-        ea p = Point { x: 1, y: 2 };
-        quete(p.double_sum());
+        essë p = Point { x: 1, y: 2 };
+        quétë(p.double_sum());
     "#;
     assert_eq!(ok(source), "6\n");
 }
@@ -551,8 +561,8 @@ fn methods_can_call_later_methods() {
                 entul 1;
             }
         }
-        ea p = Point { x: 0 };
-        quete(p.a());
+        essë p = Point { x: 0 };
+        quétë(p.a());
     "#;
     assert_eq!(ok(source), "2\n");
 }
@@ -567,8 +577,8 @@ fn method_on_field() {
                 entul immo.x + immo.y;
             }
         }
-        ea l = Line { start: Point { x: 1, y: 2 } };
-        quete(l.start.sum());
+        essë l = Line { start: Point { x: 1, y: 2 } };
+        quétë(l.start.sum());
     "#;
     assert_eq!(ok(source), "3\n");
 }
@@ -580,12 +590,12 @@ fn structs_in_functions_and_lists() {
         maita get_x(p: Point) -> Notessë {
             entul p.x;
         }
-        ea ps = [Point { x: 1 }, Point { x: 2 }];
-        ilya p mi ps {
-            quete(get_x(p));
+        essë ps = [Point { x: 1 }, Point { x: 2 }];
+        ilyë p mí ps {
+            quétë(get_x(p));
         }
-        ilya p mi [Point { x: 3 }, Point { x: 4 }] {
-            quete(p.x);
+        ilyë p mí [Point { x: 3 }, Point { x: 4 }] {
+            quétë(p.x);
         }
     "#;
     assert_eq!(ok(source), "1\n2\n3\n4\n");
@@ -595,13 +605,13 @@ fn structs_in_functions_and_lists() {
 fn struct_equality() {
     let source = r#"
         canta Point { x: Notessë, y: Notessë }
-        ea a = Point { x: 1, y: 2 };
-        ea b = Point { x: 1, y: 2 };
-        ea c = Point { x: 2, y: 1 };
-        quete(a == b);
-        quete(a == c);
+        essë a = Point { x: 1, y: 2 };
+        essë b = Point { x: 1, y: 2 };
+        essë c = Point { x: 2, y: 1 };
+        quétë(a == b);
+        quétë(a == c);
     "#;
-    assert_eq!(ok(source), "naite\nla naite\n");
+    assert_eq!(ok(source), "naitë\nlá naitë\n");
 }
 
 #[test]
@@ -614,7 +624,7 @@ fn struct_literal_in_condition() {
             }
         }
         qui (Point { x: 1, y: 1 }).sum() == 2 {
-            quete("yes");
+            quétë("yes");
         }
     "#;
     assert_eq!(ok(source), "yes\n");
@@ -622,11 +632,11 @@ fn struct_literal_in_condition() {
 
 #[test]
 fn struct_field_errors() {
-    let error = run("canta Point { x: Notessë } ea p = Point { y: 1 };").unwrap_err();
+    let error = run("canta Point { x: Notessë } essë p = Point { y: 1 };").unwrap_err();
     assert!(error.contains("has no field `y`"), "{error}");
-    let error = run("canta Point { x: Notessë } ea p = Point {};").unwrap_err();
+    let error = run("canta Point { x: Notessë } essë p = Point {};").unwrap_err();
     assert!(error.contains("missing field `x`"), "{error}");
-    let error = run(r#"canta Point { x: Notessë } ea p = Point { x: "a" };"#).unwrap_err();
+    let error = run(r#"canta Point { x: Notessë } essë p = Point { x: "a" };"#).unwrap_err();
     assert!(
         error.contains("expected `Notessë`, found `Quetta`"),
         "{error}"
@@ -637,11 +647,11 @@ fn struct_field_errors() {
 
 #[test]
 fn struct_type_errors() {
-    let error = run("ea p = Missing { x: 1 };").unwrap_err();
+    let error = run("essë p = Missing { x: 1 };").unwrap_err();
     assert!(error.contains("unknown type `Missing`"), "{error}");
     let error = run("canta Point { x: Missing }").unwrap_err();
     assert!(error.contains("unknown type `Missing`"), "{error}");
-    let error = run("canta Point { x: Notessë } ea p: Missing = Point { x: 1 };").unwrap_err();
+    let error = run("canta Point { x: Notessë } essë p: Missing = Point { x: 1 };").unwrap_err();
     assert!(error.contains("unknown type `Missing`"), "{error}");
     let error = run("canta Node { next: Node }").unwrap_err();
     assert!(error.contains("unknown type `Node`"), "{error}");
@@ -651,10 +661,10 @@ fn struct_type_errors() {
 
 #[test]
 fn method_errors() {
-    let error = run("canta Point { x: Notessë } ea p = Point { x: 1 }; p.nope();").unwrap_err();
+    let error = run("canta Point { x: Notessë } essë p = Point { x: 1 }; p.nope();").unwrap_err();
     assert!(error.contains("has no method `nope`"), "{error}");
     let error = run(
-        r#"canta Point { x: Notessë } carasta Point { maita f(immo, x: Notessë) -> Er { } } ea p = Point { x: 1 }; p.f("a");"#,
+        r#"canta Point { x: Notessë } carasta Point { maita f(immo, x: Notessë) -> Er { } } essë p = Point { x: 1 }; p.f("a");"#,
     )
     .unwrap_err();
     assert!(
@@ -681,7 +691,7 @@ fn method_errors() {
 #[test]
 fn method_arity_error() {
     let error = run(
-        "canta Point { x: Notessë } carasta Point { maita f(immo, x: Notessë) -> Er { } } ea p = Point { x: 1 }; p.f();",
+        "canta Point { x: Notessë } carasta Point { maita f(immo, x: Notessë) -> Er { } } essë p = Point { x: 1 }; p.f();",
     )
     .unwrap_err();
     assert!(error.contains("expects 1 arguments, got 0"), "{error}");
@@ -689,7 +699,8 @@ fn method_arity_error() {
 
 #[test]
 fn field_assignment_type_error() {
-    let error = run(r#"canta Point { x: Notessë } ea p = Point { x: 1 }; p.x = "a";"#).unwrap_err();
+    let error =
+        run(r#"canta Point { x: Notessë } essë p = Point { x: 1 }; p.x = "a";"#).unwrap_err();
     assert!(
         error.contains("expected `Notessë`, found `Quetta`"),
         "{error}"
@@ -728,6 +739,6 @@ fn top_level_return() {
 
 #[test]
 fn parse_error() {
-    let error = run("ea x = ;").unwrap_err();
+    let error = run("essë x = ;").unwrap_err();
     assert!(error.contains("expected expression"), "{error}");
 }

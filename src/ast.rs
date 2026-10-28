@@ -10,7 +10,7 @@ use std::fmt;
 pub enum UnaryOp {
     /// `-value`
     Neg,
-    /// `la value`
+    /// `lá value`
     Not,
 }
 
@@ -129,7 +129,7 @@ pub enum ExprKind {
     Int(i64),
     /// A string literal, for example `"Elen síla"`.
     Str(String),
-    /// A boolean literal. `naite` is the only literal. `la naite` is an expression.
+    /// A boolean literal. `naitë` is the only literal. `lá naitë` is an expression.
     Bool(bool),
     /// A list literal, for example `[1, 2, 3]`.
     List(Vec<Expr>),
@@ -168,7 +168,7 @@ pub struct Stmt {
 /// The shape of a statement.
 #[derive(Debug, Clone)]
 pub enum StmtKind {
-    /// `ea name: Type = value;` or `ea name = value;`
+    /// `essë name: Type = value;` or `essë name = value;`
     ///
     /// The type annotation is optional. Local types are inferred.
     Let {
@@ -190,7 +190,7 @@ pub enum StmtKind {
         name: String,
         value: Expr,
     },
-    /// `quete(value);`
+    /// `quétë(value);`
     Print(Expr),
     /// `qui condition { ... } mal { ... }`
     ///
@@ -200,9 +200,9 @@ pub enum StmtKind {
         then_branch: Vec<Stmt>,
         else_branch: Option<Box<Stmt>>,
     },
-    /// `ya condition { ... }`
+    /// `yallumë condition { ... }`
     While { condition: Expr, body: Vec<Stmt> },
-    /// `ilya name mi iterable { ... }`
+    /// `ilyë name mí iterable { ... }`
     For {
         var: String,
         iterable: Expr,

@@ -1,10 +1,10 @@
 # Function types and higher-order functions.
-maita apply(f: maita(Notessë) -> Notessë, x: Notessë) -> Notessë {
-    entul f(x);
+maita carë(carmë: maita(Notessë) -> Notessë, quetta: Notessë) -> Notessë {
+    entul carmë(quetta);
 }
 
-maita inc(x: Notessë) -> Notessë {
-    entul x + 1;
+maita anta(quetta: Notessë) -> Notessë {
+    entul quetta + 1;
 }
 
-quete(apply(inc, 4));
+quétë(carë(anta, 4));

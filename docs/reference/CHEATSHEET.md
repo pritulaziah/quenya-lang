@@ -4,32 +4,34 @@
 
 | Word | Meaning | Rust |
 | --- | --- | --- |
-| `ea` | variable | `let` |
+| `essë` | variable | `let` |
 | `maita` | function | `fn` |
 | `entul` | return | `return` |
 | `qui` / `mal` | if / else | `if` / `else` |
-| `ya` | while | `while` |
-| `ilya` / `mi` | for / in | `for` / `in` |
+| `yallumë` | while | `while` |
+| `ilyë` / `mí` | for / in | `for` / `in` |
 | `rac` / `lelya` | break / continue | `break` / `continue` |
-| `naite` | true | `true` |
-| `la` | not | `!` |
+| `naitë` | true | `true` |
+| `lá` | not | `!` |
 | `ar` / `hya` | and / or | `&&` / `||` |
-| `quete` | print | `println!` |
+| `quétë` | print | `println!` |
 | `canta` | struct | `struct` |
 | `carasta` | impl | `impl` |
 
 `immo` is the first method parameter. It is not a keyword.
 
+Keywords use one exact spelling. Write the diacritics.
+
 ## Types
 
-| Type | ASCII | Rust |
-| --- | --- | --- |
-| `Notessë` | `Notesse` | `i64` |
-| `Quetta` | `Quetta` | `String` |
-| `Nanwa` | `Nanwa` | `bool` |
-| `Er` | `Er` | `()` |
-| `Técma<T>` | `Tecma<T>` | `Vec<T>` |
-| `maita(T) -> R` | same | `fn(T) -> R` |
+| Type | Rust |
+| --- | --- |
+| `Notessë` | `i64` |
+| `Quetta` | `String` |
+| `Nanwa` | `bool` |
+| `Er` | `()` |
+| `Técma<T>` | `Vec<T>` |
+| `maita(T) -> R` | `fn(T) -> R` |
 
 A struct name is a user-defined type.
 
@@ -37,30 +39,30 @@ A struct name is a user-defined type.
 
 | Item | Form |
 | --- | --- |
-| variable | `ea x = 1;` / `ea x: Notessë = 1;` |
+| variable | `essë x = 1;` / `essë x: Notessë = 1;` |
 | assignment | `x = 2;` / `xs[0] = 3;` |
-| print | `quete(x);` |
+| print | `quétë(x);` |
 | if | `qui x { ... } mal { ... }` |
-| while | `ya x { ... }` |
-| for | `ilya x mi xs { ... }` |
+| while | `yallumë x { ... }` |
+| for | `ilyë x mí xs { ... }` |
 | break / continue | `rac;` / `lelya;` |
 | function | `maita f(x: Notessë) -> Notessë { ... }` |
 | return | `entul x;` / `entul;` |
 | list | `[1, 2, 3]` / `xs[0]` |
-| empty list | `ea xs: Técma<Notessë> = [];` |
-| struct | `canta Point { x: Notessë }` |
-| struct literal | `Point { x: 1 }` |
-| field | `p.x` / `p.x = 1` |
-| method | `maita move(immo, dx: Notessë) -> Er { ... }` |
-| method call | `p.move(1)` |
+| empty list | `essë xs: Técma<Notessë> = [];` |
+| struct | `canta Elda { quetta: Quetta }` |
+| struct literal | `Elda { quetta: "Elen" }` |
+| field | `elda.quetta` / `elda.quetta = "Anar"` |
+| method | `maita vista(immo, quetta: Quetta) -> Er { ... }` |
+| method call | `elda.vista("Anar")` |
 
 ## Built-in Functions
 
 | Function | Effect |
 | --- | --- |
-| `not(x)` | length of `Técma<T>` or `Quetta` |
+| `notië(x)` | length of `Técma<T>` or `Quetta` |
 | `napan(xs, x)` | add an item, return `Er` |
-| `quete(x)` | print, this is a statement |
+| `quétë(x)` | print, this is a statement |
 
 ## Functions
 
@@ -87,10 +89,10 @@ A struct name is a user-defined type.
 ## Lists
 
 - Type: `Técma<T>`.
-- `not(xs)` returns the length.
+- `notië(xs)` returns the length.
 - `napan(xs, x)` adds an item.
 - `xs + ys` creates a new list.
-- `ilya x mi xs { ... }` iterates over a snapshot.
+- `ilyë x mí xs { ... }` iterates over a snapshot.
 - `xs[i]` reads an item. `xs[i] = x` writes an item.
 - `[]` needs a type annotation or context.
 
@@ -105,7 +107,7 @@ A struct name is a user-defined type.
 - The check runs after the parser and before the interpreter.
 - It checks types, arity, returns, conditions, loops, and `rac`/`lelya`.
 - It checks struct fields and method signatures.
-- An empty list gets its type from context: `ea xs = []; napan(xs, 1);`.
-- `ea xs = [];` is an error.
+- An empty list gets its type from context: `essë xs = []; napan(xs, 1);`.
+- `essë xs = [];` is an error.
 - `qui` is a statement, not an expression.
-- `not` and `napan` are free functions, not methods.
+- `notië` and `napan` are free functions, not methods.

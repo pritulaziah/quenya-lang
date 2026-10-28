@@ -6,7 +6,7 @@
 //! The checker infers local variable types and checks function signatures,
 //! calls, operators, lists, conditions, returns, structs, and methods. It is
 //! deliberately small: there are no generics, traits, or ownership yet. The
-//! builtins `not` and `napan` are special-cased until the language gets traits.
+//! builtins `notië` and `napan` are special-cased until the language gets traits.
 //!
 //! The variants below use English names for code readability. `Display`
 //! prints the Quenya source names: `Notessë`, `Quetta`, `Nanwa`, `Er`,
@@ -85,7 +85,7 @@ enum BuiltinKind {
 impl BuiltinKind {
     fn name(self) -> &'static str {
         match self {
-            BuiltinKind::Len => "not",
+            BuiltinKind::Len => "notië",
             BuiltinKind::Push => "napan",
         }
     }
@@ -129,7 +129,7 @@ impl TypeChecker {
     /// Create a checker with the builtin functions in the global scope.
     pub fn new() -> Self {
         let mut global = HashMap::new();
-        global.insert("not".to_string(), InferType::Builtin(BuiltinKind::Len));
+        global.insert("notië".to_string(), InferType::Builtin(BuiltinKind::Len));
         global.insert("napan".to_string(), InferType::Builtin(BuiltinKind::Push));
         Self {
             scopes: vec![global],
@@ -371,10 +371,10 @@ impl TypeChecker {
             return Err(Error::new(line, "`canta` is only allowed at top level"));
         }
 
-        let folded = crate::lexer::fold_keyword(name).to_lowercase();
+        let lower = name.to_lowercase();
         if matches!(
-            folded.as_str(),
-            "notesse" | "quetta" | "nanwa" | "er" | "tecma"
+            lower.as_str(),
+            "notessë" | "quetta" | "nanwa" | "er" | "técma"
         ) {
             return Err(Error::new(
                 line,
@@ -826,12 +826,12 @@ impl TypeChecker {
                     InferType::Str | InferType::List(_) => Ok(InferType::Int),
                     InferType::Var(_) => Err(Error::new(
                         args[0].line,
-                        "cannot infer the type of the `not` argument; add a type annotation",
+                        "cannot infer the type of the `notië` argument; add a type annotation",
                     )),
                     other => Err(Error::new(
                         args[0].line,
                         format!(
-                            "`not` expects a list or string, got `{}`",
+                            "`notië` expects a list or string, got `{}`",
                             self.type_name(&other)
                         ),
                     )),

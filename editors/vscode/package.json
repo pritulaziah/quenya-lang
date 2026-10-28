@@ -2,7 +2,7 @@
   "name": "quenya-lang",
   "displayName": "Quenya Lang",
   "description": "Syntax highlighting for the Quenya programming language.",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "publisher": "pritulaziah",
   "license": "MIT",
   "icon": "quenya-ice-128.png",

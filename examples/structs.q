@@ -1,21 +1,20 @@
 # Structs, fields, and methods.
-canta Point {
-    x: Notessë,
-    y: Notessë,
+canta Elda {
+    quetta: Quetta,
+    nótië: Notessë,
 }
 
-carasta Point {
-    maita move(immo, dx: Notessë, dy: Notessë) -> Er {
-        immo.x = immo.x + dx;
-        immo.y = immo.y + dy;
+carasta Elda {
+    maita vista(immo, quetta: Quetta) -> Er {
+        immo.quetta = quetta;
     }
 
-    maita sum(immo) -> Notessë {
-        entul immo.x + immo.y;
+    maita notië(immo) -> Notessë {
+        entul immo.nótië;
     }
 }
 
-ea p = Point { x: 1, y: 2 };
-p.move(10, 20);
-quete(p);
-quete(p.sum());
+essë elda = Elda { quetta: "Elen", nótië: 1 };
+elda.vista("Anar");
+quétë(elda);
+quétë(elda.notië());

@@ -1,2 +1,2 @@
-# Say hello in Quenya.
-quete("Elen síla");
+# Greet in Quenya.
+quétë("Elen síla lúmenn' omentielvo");

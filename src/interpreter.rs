@@ -636,7 +636,7 @@ fn call_builtin(builtin: Builtin, args: Vec<Value>, line: usize) -> Result<Value
                 Value::Str(text) => Ok(Value::Int(text.chars().count() as i64)),
                 other => Err(Error::new(
                     line,
-                    format!("`not` expects a list or string, got {other}"),
+                    format!("`notië` expects a list or string, got {other}"),
                 )),
             }
         }

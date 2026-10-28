@@ -1,16 +1,16 @@
 # Fibonacci numbers.
 
 # A recursive function.
-maita fib(n: Notessë) -> Notessë {
+maita nótië(n: Notessë) -> Notessë {
     qui n < 2 {
         entul n;
     }
-    entul fib(n - 1) + fib(n - 2);
+    entul nótië(n - 1) + nótië(n - 2);
 }
 
 # Print the first ten numbers.
-ea i = 0;
-ya i < 10 {
-    quete(fib(i));
-    i = i + 1;
+essë quen = 0;
+yallumë quen < 10 {
+    quétë(nótië(quen));
+    quen = quen + 1;
 }
