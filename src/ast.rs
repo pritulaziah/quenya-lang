@@ -56,6 +56,8 @@ pub enum Type {
     Unit,
     /// List, written `Técma<T>` in source.
     List(Box<Type>),
+    /// A user-defined struct type, for example `Point`.
+    Struct(String),
     /// A function type, for example `maita(Notessë, Quetta) -> Nanwa`.
     Function(Vec<Type>, Box<Type>),
 }
@@ -68,6 +70,7 @@ impl fmt::Display for Type {
             Type::Bool => write!(f, "Nanwa"),
             Type::Unit => write!(f, "Er"),
             Type::List(inner) => write!(f, "Técma<{inner}>"),
+            Type::Struct(name) => write!(f, "{name}"),
             Type::Function(params, ret) => {
                 write!(f, "maita(")?;
                 for (index, param) in params.iter().enumerate() {
@@ -87,6 +90,29 @@ impl fmt::Display for Type {
 pub struct Param {
     pub name: String,
     pub ty: Type,
+}
+
+/// A field in a struct declaration.
+#[derive(Debug, Clone)]
+pub struct FieldDef {
+    pub name: String,
+    pub ty: Type,
+}
+
+/// A field value in a struct literal.
+#[derive(Debug, Clone)]
+pub struct FieldInit {
+    pub name: String,
+    pub value: Expr,
+}
+
+/// A method in an `impl` block.
+#[derive(Debug, Clone)]
+pub struct MethodDef {
+    pub name: String,
+    pub params: Vec<Param>,
+    pub ret: Type,
+    pub body: Vec<Stmt>,
 }
 
 /// An expression with its source line.
@@ -117,6 +143,19 @@ pub enum ExprKind {
     Call(Box<Expr>, Vec<Expr>),
     /// An index lookup, for example `xs[0]`.
     Index { target: Box<Expr>, index: Box<Expr> },
+    /// A struct literal, for example `Point { x: 1, y: 2 }`.
+    Struct {
+        name: String,
+        fields: Vec<FieldInit>,
+    },
+    /// A field lookup, for example `point.x`.
+    Field { target: Box<Expr>, name: String },
+    /// A method call, for example `point.move(1, 2)`.
+    MethodCall {
+        target: Box<Expr>,
+        name: String,
+        args: Vec<Expr>,
+    },
 }
 
 /// A statement with its source line.
@@ -145,6 +184,12 @@ pub enum StmtKind {
         index: Expr,
         value: Expr,
     },
+    /// `target.field = value;`
+    FieldAssign {
+        target: Expr,
+        name: String,
+        value: Expr,
+    },
     /// `quete(value);`
     Print(Expr),
     /// `qui condition { ... } mal { ... }`
@@ -167,6 +212,13 @@ pub enum StmtKind {
     Break,
     /// `lelya;`
     Continue,
+    /// `canta Name { field: Type, ... }`
+    Struct { name: String, fields: Vec<FieldDef> },
+    /// `carasta Name { maita method(immo, ...) { ... } }`
+    Impl {
+        name: String,
+        methods: Vec<MethodDef>,
+    },
     /// `maita name(params) -> Type { ... }`
     ///
     /// The return type is `Er` when `-> Type` is omitted.

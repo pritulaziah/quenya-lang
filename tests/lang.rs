@@ -460,6 +460,267 @@ fn empty_list_not_is_rejected() {
 }
 
 #[test]
+fn structs_and_fields() {
+    let source = r#"
+        canta Point { x: Notessë, y: Notessë }
+        ea p = Point { x: 1, y: 2 };
+        quete(p.x);
+        p.x = 10;
+        quete(p.x);
+        quete(p);
+    "#;
+    assert_eq!(ok(source), "1\n10\nPoint { x: 10, y: 2 }\n");
+}
+
+#[test]
+fn nested_structs() {
+    let source = r#"
+        canta Point { x: Notessë, y: Notessë }
+        canta Line { start: Point, end: Point }
+        ea l = Line {
+            start: Point { x: 1, y: 2 },
+            end: Point { x: 3, y: 4 },
+        };
+        quete(l.start.y);
+        l.start.x = 10;
+        quete(l.start.x);
+        quete(l);
+    "#;
+    assert_eq!(
+        ok(source),
+        "2\n10\nLine { start: Point { x: 10, y: 2 }, end: Point { x: 3, y: 4 } }\n"
+    );
+}
+
+#[test]
+fn empty_struct() {
+    assert_eq!(
+        ok("canta Empty {} ea e = Empty {}; quete(e);"),
+        "Empty {}\n"
+    );
+}
+
+#[test]
+fn struct_methods() {
+    let source = r#"
+        canta Point { x: Notessë, y: Notessë }
+        carasta Point {
+            maita move(immo, dx: Notessë, dy: Notessë) -> Er {
+                immo.x = immo.x + dx;
+                immo.y = immo.y + dy;
+            }
+            maita sum(immo) -> Notessë {
+                entul immo.x + immo.y;
+            }
+        }
+        ea p = Point { x: 1, y: 2 };
+        p.move(10, 20);
+        quete(p.sum());
+        quete(p);
+    "#;
+    assert_eq!(ok(source), "33\nPoint { x: 11, y: 22 }\n");
+}
+
+#[test]
+fn method_calls_method() {
+    let source = r#"
+        canta Point { x: Notessë, y: Notessë }
+        carasta Point {
+            maita sum(immo) -> Notessë {
+                entul immo.x + immo.y;
+            }
+            maita double_sum(immo) -> Notessë {
+                entul immo.sum() * 2;
+            }
+        }
+        ea p = Point { x: 1, y: 2 };
+        quete(p.double_sum());
+    "#;
+    assert_eq!(ok(source), "6\n");
+}
+
+#[test]
+fn methods_can_call_later_methods() {
+    let source = r#"
+        canta Point { x: Notessë }
+        carasta Point {
+            maita a(immo) -> Notessë {
+                entul immo.b() + 1;
+            }
+            maita b(immo) -> Notessë {
+                entul 1;
+            }
+        }
+        ea p = Point { x: 0 };
+        quete(p.a());
+    "#;
+    assert_eq!(ok(source), "2\n");
+}
+
+#[test]
+fn method_on_field() {
+    let source = r#"
+        canta Point { x: Notessë, y: Notessë }
+        canta Line { start: Point }
+        carasta Point {
+            maita sum(immo) -> Notessë {
+                entul immo.x + immo.y;
+            }
+        }
+        ea l = Line { start: Point { x: 1, y: 2 } };
+        quete(l.start.sum());
+    "#;
+    assert_eq!(ok(source), "3\n");
+}
+
+#[test]
+fn structs_in_functions_and_lists() {
+    let source = r#"
+        canta Point { x: Notessë }
+        maita get_x(p: Point) -> Notessë {
+            entul p.x;
+        }
+        ea ps = [Point { x: 1 }, Point { x: 2 }];
+        ilya p mi ps {
+            quete(get_x(p));
+        }
+        ilya p mi [Point { x: 3 }, Point { x: 4 }] {
+            quete(p.x);
+        }
+    "#;
+    assert_eq!(ok(source), "1\n2\n3\n4\n");
+}
+
+#[test]
+fn struct_equality() {
+    let source = r#"
+        canta Point { x: Notessë, y: Notessë }
+        ea a = Point { x: 1, y: 2 };
+        ea b = Point { x: 1, y: 2 };
+        ea c = Point { x: 2, y: 1 };
+        quete(a == b);
+        quete(a == c);
+    "#;
+    assert_eq!(ok(source), "naite\nla naite\n");
+}
+
+#[test]
+fn struct_literal_in_condition() {
+    let source = r#"
+        canta Point { x: Notessë, y: Notessë }
+        carasta Point {
+            maita sum(immo) -> Notessë {
+                entul immo.x + immo.y;
+            }
+        }
+        qui (Point { x: 1, y: 1 }).sum() == 2 {
+            quete("yes");
+        }
+    "#;
+    assert_eq!(ok(source), "yes\n");
+}
+
+#[test]
+fn struct_field_errors() {
+    let error = run("canta Point { x: Notessë } ea p = Point { y: 1 };").unwrap_err();
+    assert!(error.contains("has no field `y`"), "{error}");
+    let error = run("canta Point { x: Notessë } ea p = Point {};").unwrap_err();
+    assert!(error.contains("missing field `x`"), "{error}");
+    let error = run(r#"canta Point { x: Notessë } ea p = Point { x: "a" };"#).unwrap_err();
+    assert!(
+        error.contains("expected `Notessë`, found `Quetta`"),
+        "{error}"
+    );
+    let error = run("canta Point { x: Notessë, x: Notessë }").unwrap_err();
+    assert!(error.contains("duplicate field `x`"), "{error}");
+}
+
+#[test]
+fn struct_type_errors() {
+    let error = run("ea p = Missing { x: 1 };").unwrap_err();
+    assert!(error.contains("unknown type `Missing`"), "{error}");
+    let error = run("canta Point { x: Missing }").unwrap_err();
+    assert!(error.contains("unknown type `Missing`"), "{error}");
+    let error = run("canta Point { x: Notessë } ea p: Missing = Point { x: 1 };").unwrap_err();
+    assert!(error.contains("unknown type `Missing`"), "{error}");
+    let error = run("canta Node { next: Node }").unwrap_err();
+    assert!(error.contains("unknown type `Node`"), "{error}");
+    let error = run("canta Notessë { x: Notessë }").unwrap_err();
+    assert!(error.contains("is reserved"), "{error}");
+}
+
+#[test]
+fn method_errors() {
+    let error = run("canta Point { x: Notessë } ea p = Point { x: 1 }; p.nope();").unwrap_err();
+    assert!(error.contains("has no method `nope`"), "{error}");
+    let error = run(
+        r#"canta Point { x: Notessë } carasta Point { maita f(immo, x: Notessë) -> Er { } } ea p = Point { x: 1 }; p.f("a");"#,
+    )
+    .unwrap_err();
+    assert!(
+        error.contains("expected `Notessë`, found `Quetta`"),
+        "{error}"
+    );
+    let error = run("canta Point { x: Notessë } carasta Point { maita f(immo) -> Notessë { } }")
+        .unwrap_err();
+    assert!(
+        error.contains("not all control paths return a value"),
+        "{error}"
+    );
+    let error = run("canta Point { x: Notessë } carasta Point { maita f(x: Notessë) -> Er { } }")
+        .unwrap_err();
+    assert!(error.contains("method must start with `immo`"), "{error}");
+    let error = run("canta Point { x: Notessë } carasta Point { maita f(immo: Point) -> Er { } }")
+        .unwrap_err();
+    assert!(
+        error.contains("self parameter `immo` must not have a type"),
+        "{error}"
+    );
+}
+
+#[test]
+fn method_arity_error() {
+    let error = run(
+        "canta Point { x: Notessë } carasta Point { maita f(immo, x: Notessë) -> Er { } } ea p = Point { x: 1 }; p.f();",
+    )
+    .unwrap_err();
+    assert!(error.contains("expects 1 arguments, got 0"), "{error}");
+}
+
+#[test]
+fn field_assignment_type_error() {
+    let error = run(r#"canta Point { x: Notessë } ea p = Point { x: 1 }; p.x = "a";"#).unwrap_err();
+    assert!(
+        error.contains("expected `Notessë`, found `Quetta`"),
+        "{error}"
+    );
+}
+
+#[test]
+fn impl_errors() {
+    let error = run("carasta Missing { }").unwrap_err();
+    assert!(error.contains("unknown type `Missing`"), "{error}");
+    let error = run(
+        "canta Point { x: Notessë } carasta Point { maita f(immo) -> Er { } maita f(immo) -> Er { } }",
+    )
+    .unwrap_err();
+    assert!(error.contains("duplicate method `f`"), "{error}");
+    let error = run(
+        "canta Point { x: Notessë } carasta Point { maita f(immo) -> Er { } } carasta Point { maita f(immo) -> Er { } }",
+    )
+    .unwrap_err();
+    assert!(error.contains("already defined"), "{error}");
+}
+
+#[test]
+fn struct_top_level_only() {
+    let error = run("{ canta Point { x: Notessë } }").unwrap_err();
+    assert!(error.contains("only allowed at top level"), "{error}");
+    let error = run("{ carasta Point { } }").unwrap_err();
+    assert!(error.contains("only allowed at top level"), "{error}");
+}
+
+#[test]
 fn top_level_return() {
     let error = run("entul 1;").unwrap_err();
     assert!(error.contains("outside function"), "{error}");

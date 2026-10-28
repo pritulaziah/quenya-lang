@@ -10,7 +10,7 @@ use std::rc::Rc;
 use crate::ast::{BinaryOp, Expr, ExprKind, Stmt, StmtKind, UnaryOp};
 use crate::environment::Environment;
 use crate::error::Error;
-use crate::value::{values_equal, Builtin, Function, Value};
+use crate::value::{values_equal, Builtin, Function, StructInstance, Value};
 
 // `Flow` carries control flow through nested blocks.
 enum Flow {
@@ -101,6 +101,32 @@ fn execute(
                 )),
             }
         }
+        // Field assignment mutates the struct in place.
+        StmtKind::FieldAssign {
+            target,
+            name,
+            value,
+        } => {
+            let target_value = eval(target, env, out)?;
+            let value = eval(value, env, out)?;
+            match target_value {
+                Value::Struct(instance) => {
+                    let mut instance = instance.borrow_mut();
+                    if instance.set(name, value) {
+                        Ok(Flow::Normal)
+                    } else {
+                        Err(Error::new(
+                            target.line,
+                            format!("type `{}` has no field `{name}`", instance.type_name),
+                        ))
+                    }
+                }
+                other => Err(Error::new(
+                    target.line,
+                    format!("expected struct, got {other}"),
+                )),
+            }
+        }
         // Write to the output sink. Tests pass a `Vec<u8>`.
         StmtKind::Print(expr) => {
             let value = eval(expr, env, out)?;
@@ -174,6 +200,30 @@ fn execute(
         // The enclosing loop handles these flows.
         StmtKind::Break => Ok(Flow::Break(stmt.line)),
         StmtKind::Continue => Ok(Flow::Continue(stmt.line)),
+        // Struct definitions are checked before execution.
+        StmtKind::Struct { .. } => Ok(Flow::Normal),
+        // Methods are functions with a mangled name. The first parameter
+        // is `immo`, so a method call can pass the receiver as its first
+        // argument.
+        StmtKind::Impl { name, methods } => {
+            for method in methods {
+                let function = Function {
+                    name: format!("{name}::{}", method.name),
+                    params: method
+                        .params
+                        .iter()
+                        .map(|param| param.name.clone())
+                        .collect(),
+                    body: method.body.clone(),
+                    env: env.clone(),
+                };
+                env.borrow_mut().define(
+                    format!("{name}::{}", method.name),
+                    Value::Function(Rc::new(function)),
+                );
+            }
+            Ok(Flow::Normal)
+        }
         // Capture the current environment. Types are checked before execution.
         StmtKind::Function {
             name, params, body, ..
@@ -284,18 +334,7 @@ fn eval(expr: &Expr, env: &Rc<RefCell<Environment>>, out: &mut dyn Write) -> Res
                     for arg in args {
                         values.push(eval(arg, env, out)?);
                     }
-
-                    let call_env = Environment::new_child(function.env.clone());
-                    for (param, value) in function.params.iter().zip(values) {
-                        call_env.borrow_mut().define(param.clone(), value);
-                    }
-
-                    match execute_block(&function.body, &call_env, out)? {
-                        Flow::Normal => Ok(Value::Unit),
-                        Flow::Return(value) => Ok(value),
-                        Flow::Break(line) => Err(Error::new(line, "`rac` outside loop")),
-                        Flow::Continue(line) => Err(Error::new(line, "`lelya` outside loop")),
-                    }
+                    call_function(function, values, expr.line, out)
                 }
                 Value::Builtin(builtin) => {
                     if args.len() != builtin.arity() {
@@ -343,6 +382,115 @@ fn eval(expr: &Expr, env: &Rc<RefCell<Environment>>, out: &mut dyn Write) -> Res
                 )),
             }
         }
+        ExprKind::Struct { name, fields } => {
+            let mut values = Vec::with_capacity(fields.len());
+            for field in fields {
+                values.push((field.name.clone(), eval(&field.value, env, out)?));
+            }
+            Ok(Value::Struct(Rc::new(RefCell::new(StructInstance {
+                type_name: name.clone(),
+                fields: values,
+            }))))
+        }
+        ExprKind::Field { target, name } => {
+            let target_value = eval(target, env, out)?;
+            match target_value {
+                Value::Struct(instance) => {
+                    let instance = instance.borrow();
+                    instance.get(name).cloned().ok_or_else(|| {
+                        Error::new(
+                            expr.line,
+                            format!("type `{}` has no field `{name}`", instance.type_name),
+                        )
+                    })
+                }
+                other => Err(Error::new(
+                    target.line,
+                    format!("expected struct, got {other}"),
+                )),
+            }
+        }
+        ExprKind::MethodCall { target, name, args } => {
+            let target_value = eval(target, env, out)?;
+            let instance = match target_value {
+                Value::Struct(instance) => instance,
+                other => {
+                    return Err(Error::new(
+                        target.line,
+                        format!("method call requires a struct, got {other}"),
+                    ));
+                }
+            };
+
+            let type_name = instance.borrow().type_name.clone();
+            let method_name = format!("{type_name}::{name}");
+            let method = env.borrow().get(&method_name).ok_or_else(|| {
+                Error::new(
+                    expr.line,
+                    format!("type `{type_name}` has no method `{name}`"),
+                )
+            })?;
+            let function = match method {
+                Value::Function(function) => function,
+                other => {
+                    return Err(Error::new(
+                        expr.line,
+                        format!("`{method_name}` is not a function: {other}"),
+                    ));
+                }
+            };
+
+            if args.len() + 1 != function.params.len() {
+                return Err(Error::new(
+                    expr.line,
+                    format!(
+                        "function `{}` expects {} arguments, got {}",
+                        function.name,
+                        function.params.len() - 1,
+                        args.len()
+                    ),
+                ));
+            }
+
+            let mut values = Vec::with_capacity(args.len() + 1);
+            values.push(Value::Struct(instance));
+            for arg in args {
+                values.push(eval(arg, env, out)?);
+            }
+            call_function(function, values, expr.line, out)
+        }
+    }
+}
+
+// Call a user-defined function or method with already evaluated arguments.
+fn call_function(
+    function: Rc<Function>,
+    values: Vec<Value>,
+    line: usize,
+    out: &mut dyn Write,
+) -> Result<Value, Error> {
+    if values.len() != function.params.len() {
+        return Err(Error::new(
+            line,
+            format!(
+                "function `{}` expects {} arguments, got {}",
+                function.name,
+                function.params.len(),
+                values.len()
+            ),
+        ));
+    }
+
+    let call_env = Environment::new_child(function.env.clone());
+    for (param, value) in function.params.iter().zip(values) {
+        call_env.borrow_mut().define(param.clone(), value);
+    }
+
+    match execute_block(&function.body, &call_env, out)? {
+        Flow::Normal => Ok(Value::Unit),
+        Flow::Return(value) => Ok(value),
+        Flow::Break(line) => Err(Error::new(line, "`rac` outside loop")),
+        Flow::Continue(line) => Err(Error::new(line, "`lelya` outside loop")),
     }
 }
 

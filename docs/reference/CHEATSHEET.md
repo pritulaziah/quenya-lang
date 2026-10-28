@@ -15,6 +15,10 @@
 | `la` | not | `!` |
 | `ar` / `hya` | and / or | `&&` / `||` |
 | `quete` | print | `println!` |
+| `canta` | struct | `struct` |
+| `carasta` | impl | `impl` |
+
+`immo` is the first method parameter. It is not a keyword.
 
 ## Types
 
@@ -26,6 +30,8 @@
 | `Er` | `Er` | `()` |
 | `Técma<T>` | `Tecma<T>` | `Vec<T>` |
 | `maita(T) -> R` | same | `fn(T) -> R` |
+
+A struct name is a user-defined type.
 
 ## Syntax
 
@@ -42,6 +48,11 @@
 | return | `entul x;` / `entul;` |
 | list | `[1, 2, 3]` / `xs[0]` |
 | empty list | `ea xs: Técma<Notessë> = [];` |
+| struct | `canta Point { x: Notessë }` |
+| struct literal | `Point { x: 1 }` |
+| field | `p.x` / `p.x = 1` |
+| method | `maita move(immo, dx: Notessë) -> Er { ... }` |
+| method call | `p.move(1)` |
 
 ## Built-in Functions
 
@@ -60,6 +71,18 @@
 - Closures capture the environment.
 - A function must be declared before a call.
 - Function type: `maita(Notessë) -> Notessë`.
+
+## Structs and Methods
+
+- `canta Name { field: Type, ... }` declares a struct.
+- `Name { field: value, ... }` creates a struct.
+- `value.field` reads a field.
+- `value.field = x` writes a field.
+- `carasta Name { ... }` declares methods.
+- The first method parameter is `immo` (self).
+- `value.method(args)` calls a method.
+- Struct and impl blocks are top-level only.
+- A field type must be declared before use.
 
 ## Lists
 
@@ -81,6 +104,7 @@
 
 - The check runs after the parser and before the interpreter.
 - It checks types, arity, returns, conditions, loops, and `rac`/`lelya`.
+- It checks struct fields and method signatures.
 - An empty list gets its type from context: `ea xs = []; napan(xs, 1);`.
 - `ea xs = [];` is an error.
 - `qui` is a statement, not an expression.

@@ -4,18 +4,18 @@
 //! Quenya: it walks the AST after parsing and before interpretation.
 //!
 //! The checker infers local variable types and checks function signatures,
-//! calls, operators, lists, conditions, and returns. It is deliberately
-//! small: there are no generics, traits, or ownership yet. The builtins
-//! `not` and `napan` are special-cased until the language gets traits.
+//! calls, operators, lists, conditions, returns, structs, and methods. It is
+//! deliberately small: there are no generics, traits, or ownership yet. The
+//! builtins `not` and `napan` are special-cased until the language gets traits.
 //!
 //! The variants below use English names for code readability. `Display`
 //! prints the Quenya source names: `Notessë`, `Quetta`, `Nanwa`, `Er`,
-//! and `Técma<T>`.
+//! `Técma<T>`, and user-defined struct names.
 
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-use crate::ast::{BinaryOp, Expr, ExprKind, Stmt, StmtKind, Type, UnaryOp};
+use crate::ast::{BinaryOp, Expr, ExprKind, FieldDef, MethodDef, Stmt, StmtKind, Type, UnaryOp};
 use crate::error::Error;
 
 /// A type used during inference. `Var` is a type variable.
@@ -26,6 +26,7 @@ enum InferType {
     Bool,
     Unit,
     List(Box<InferType>),
+    Struct(String),
     Function(Vec<InferType>, Box<InferType>),
     Builtin(BuiltinKind),
     Var(usize),
@@ -40,6 +41,7 @@ impl InferType {
             Type::Bool => InferType::Bool,
             Type::Unit => InferType::Unit,
             Type::List(inner) => InferType::List(Box::new(InferType::from_ast(inner))),
+            Type::Struct(name) => InferType::Struct(name.clone()),
             Type::Function(params, ret) => InferType::Function(
                 params.iter().map(InferType::from_ast).collect(),
                 Box::new(InferType::from_ast(ret)),
@@ -56,6 +58,7 @@ impl fmt::Display for InferType {
             InferType::Bool => write!(f, "Nanwa"),
             InferType::Unit => write!(f, "Er"),
             InferType::List(inner) => write!(f, "Técma<{inner}>"),
+            InferType::Struct(name) => write!(f, "{name}"),
             InferType::Function(params, ret) => {
                 write!(f, "maita(")?;
                 for (index, param) in params.iter().enumerate() {
@@ -95,6 +98,20 @@ impl BuiltinKind {
     }
 }
 
+/// A struct definition known to the checker.
+#[derive(Debug, Clone)]
+struct StructInfo {
+    fields: Vec<(String, InferType)>,
+}
+
+/// A method signature known to the checker.
+#[derive(Debug, Clone)]
+struct MethodInfo {
+    /// Parameters after `immo`.
+    params: Vec<InferType>,
+    ret: InferType,
+}
+
 /// The type checker keeps scopes, type variables, and the current return type.
 #[derive(Clone)]
 pub struct TypeChecker {
@@ -104,6 +121,8 @@ pub struct TypeChecker {
     loop_depth: usize,
     /// Type variables from empty lists, with the line of the `[`.
     pending: Vec<(usize, usize)>,
+    structs: HashMap<String, StructInfo>,
+    methods: HashMap<(String, String), MethodInfo>,
 }
 
 impl TypeChecker {
@@ -118,6 +137,8 @@ impl TypeChecker {
             current_return: None,
             loop_depth: 0,
             pending: Vec::new(),
+            structs: HashMap::new(),
+            methods: HashMap::new(),
         }
     }
 
@@ -144,6 +165,7 @@ impl TypeChecker {
                 let value_type = self.infer(value)?;
                 let declared = if let Some(ty) = ty {
                     let declared = InferType::from_ast(ty);
+                    self.validate_type(&declared, stmt.line)?;
                     self.unify(&declared, &value_type, stmt.line)?;
                     declared
                 } else {
@@ -175,6 +197,32 @@ impl TypeChecker {
                 self.unify(&InferType::Int, &index_type, index.line)?;
                 let value_type = self.infer(value)?;
                 self.unify(&element, &value_type, value.line)
+            }
+            StmtKind::FieldAssign {
+                target,
+                name,
+                value,
+            } => {
+                let target_type = self.infer(target)?;
+                let field_type = match self.resolve(&target_type) {
+                    InferType::Struct(struct_name) => self
+                        .struct_field(&struct_name, name)
+                        .cloned()
+                        .ok_or_else(|| {
+                            Error::new(
+                                target.line,
+                                format!("type `{struct_name}` has no field `{name}`"),
+                            )
+                        })?,
+                    other => {
+                        return Err(Error::new(
+                            target.line,
+                            format!("expected struct, found `{}`", self.type_name(&other)),
+                        ));
+                    }
+                };
+                let value_type = self.infer(value)?;
+                self.unify(&field_type, &value_type, value.line)
             }
             StmtKind::Print(expr) => {
                 self.infer(expr)?;
@@ -247,6 +295,8 @@ impl TypeChecker {
                     Ok(())
                 }
             }
+            StmtKind::Struct { name, fields } => self.check_struct(stmt.line, name, fields),
+            StmtKind::Impl { name, methods } => self.check_impl(stmt.line, name, methods),
             StmtKind::Function {
                 name,
                 params,
@@ -268,6 +318,10 @@ impl TypeChecker {
                     .map(|param| InferType::from_ast(&param.ty))
                     .collect();
                 let return_type = InferType::from_ast(ret);
+                for ty in &param_types {
+                    self.validate_type(ty, stmt.line)?;
+                }
+                self.validate_type(&return_type, stmt.line)?;
                 self.define(
                     name,
                     InferType::Function(param_types.clone(), Box::new(return_type.clone())),
@@ -310,6 +364,168 @@ impl TypeChecker {
             }
             StmtKind::Block(body) => self.check_block(body),
         }
+    }
+
+    fn check_struct(&mut self, line: usize, name: &str, fields: &[FieldDef]) -> Result<(), Error> {
+        if self.scopes.len() != 1 {
+            return Err(Error::new(line, "`canta` is only allowed at top level"));
+        }
+
+        let folded = crate::lexer::fold_keyword(name).to_lowercase();
+        if matches!(
+            folded.as_str(),
+            "notesse" | "quetta" | "nanwa" | "er" | "tecma"
+        ) {
+            return Err(Error::new(
+                line,
+                format!("struct name `{name}` is reserved"),
+            ));
+        }
+        if self.structs.contains_key(name) {
+            return Err(Error::new(
+                line,
+                format!("struct `{name}` is already defined"),
+            ));
+        }
+
+        let mut seen = HashSet::new();
+        let mut field_types = Vec::new();
+        for field in fields {
+            if !seen.insert(&field.name) {
+                return Err(Error::new(
+                    line,
+                    format!("duplicate field `{}`", field.name),
+                ));
+            }
+            let ty = InferType::from_ast(&field.ty);
+            self.validate_type(&ty, line)?;
+            field_types.push((field.name.clone(), ty));
+        }
+
+        self.structs.insert(
+            name.to_string(),
+            StructInfo {
+                fields: field_types,
+            },
+        );
+        Ok(())
+    }
+
+    fn check_impl(&mut self, line: usize, name: &str, methods: &[MethodDef]) -> Result<(), Error> {
+        if self.scopes.len() != 1 {
+            return Err(Error::new(line, "`carasta` is only allowed at top level"));
+        }
+        if !self.structs.contains_key(name) {
+            return Err(Error::new(line, format!("unknown type `{name}`")));
+        }
+
+        let mut signatures = Vec::new();
+        let mut seen = HashSet::new();
+        for method in methods {
+            if !seen.insert(&method.name) {
+                return Err(Error::new(
+                    line,
+                    format!("duplicate method `{}`", method.name),
+                ));
+            }
+            if self
+                .methods
+                .contains_key(&(name.to_string(), method.name.clone()))
+            {
+                return Err(Error::new(
+                    line,
+                    format!("method `{}` is already defined for `{name}`", method.name),
+                ));
+            }
+
+            let Some(self_param) = method.params.first() else {
+                return Err(Error::new(
+                    line,
+                    format!("method `{}` must start with `immo`", method.name),
+                ));
+            };
+            if self_param.ty != Type::Struct(name.to_string()) {
+                return Err(Error::new(
+                    line,
+                    format!("method `{}` must start with `immo`", method.name),
+                ));
+            }
+
+            let mut param_types = Vec::new();
+            let mut seen_params = HashSet::new();
+            for param in &method.params {
+                if !seen_params.insert(&param.name) {
+                    return Err(Error::new(
+                        line,
+                        format!("duplicate parameter `{}`", param.name),
+                    ));
+                }
+                let ty = InferType::from_ast(&param.ty);
+                self.validate_type(&ty, line)?;
+                param_types.push(ty);
+            }
+            let return_type = InferType::from_ast(&method.ret);
+            self.validate_type(&return_type, line)?;
+
+            let info = MethodInfo {
+                params: param_types[1..].to_vec(),
+                ret: return_type.clone(),
+            };
+            self.methods
+                .insert((name.to_string(), method.name.clone()), info);
+            signatures.push((method, param_types, return_type));
+        }
+
+        for (method, param_types, return_type) in signatures {
+            self.scopes.push(HashMap::new());
+            for (param, ty) in method.params.iter().zip(param_types) {
+                self.define(&param.name, ty);
+            }
+            let saved_return = self.current_return.replace(return_type.clone());
+            let saved_loop = self.loop_depth;
+            self.loop_depth = 0;
+            let result = self.check_block(&method.body);
+            self.current_return = saved_return;
+            self.loop_depth = saved_loop;
+            self.scopes.pop();
+            result?;
+
+            if return_type != InferType::Unit && !block_returns(&method.body) {
+                return Err(Error::new(line, "not all control paths return a value"));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn validate_type(&self, ty: &InferType, line: usize) -> Result<(), Error> {
+        match ty {
+            InferType::Struct(name) if !self.structs.contains_key(name) => {
+                Err(Error::new(line, format!("unknown type `{name}`")))
+            }
+            InferType::List(inner) => self.validate_type(inner, line),
+            InferType::Function(params, ret) => {
+                for param in params {
+                    self.validate_type(param, line)?;
+                }
+                self.validate_type(ret, line)
+            }
+            _ => Ok(()),
+        }
+    }
+
+    fn struct_field(&self, struct_name: &str, field: &str) -> Option<&InferType> {
+        self.structs
+            .get(struct_name)?
+            .fields
+            .iter()
+            .find(|(name, _)| name == field)
+            .map(|(_, ty)| ty)
+    }
+
+    fn method_info(&self, struct_name: &str, method: &str) -> Option<&MethodInfo> {
+        self.methods
+            .get(&(struct_name.to_string(), method.to_string()))
     }
 
     fn check_block(&mut self, body: &[Stmt]) -> Result<(), Error> {
@@ -377,6 +593,102 @@ impl TypeChecker {
                 let index_type = self.infer(index)?;
                 self.unify(&InferType::Int, &index_type, index.line)?;
                 Ok(element)
+            }
+            ExprKind::Struct { name, fields } => {
+                let info = self
+                    .structs
+                    .get(name)
+                    .cloned()
+                    .ok_or_else(|| Error::new(expr.line, format!("unknown type `{name}`")))?;
+
+                let mut seen = HashSet::new();
+                for field in fields {
+                    if !seen.insert(field.name.clone()) {
+                        return Err(Error::new(
+                            field.value.line,
+                            format!("duplicate field `{}`", field.name),
+                        ));
+                    }
+                    let field_type = info
+                        .fields
+                        .iter()
+                        .find(|(field_name, _)| field_name == &field.name)
+                        .map(|(_, ty)| ty.clone())
+                        .ok_or_else(|| {
+                            Error::new(
+                                field.value.line,
+                                format!("type `{name}` has no field `{}`", field.name),
+                            )
+                        })?;
+                    let value_type = self.infer(&field.value)?;
+                    self.unify(&field_type, &value_type, field.value.line)?;
+                }
+
+                for (field_name, _) in &info.fields {
+                    if !seen.contains(field_name) {
+                        return Err(Error::new(
+                            expr.line,
+                            format!("missing field `{field_name}` in `{name}`"),
+                        ));
+                    }
+                }
+
+                Ok(InferType::Struct(name.clone()))
+            }
+            ExprKind::Field { target, name } => {
+                let target_type = self.infer(target)?;
+                match self.resolve(&target_type) {
+                    InferType::Struct(struct_name) => self
+                        .struct_field(&struct_name, name)
+                        .cloned()
+                        .ok_or_else(|| {
+                            Error::new(
+                                expr.line,
+                                format!("type `{struct_name}` has no field `{name}`"),
+                            )
+                        }),
+                    other => Err(Error::new(
+                        target.line,
+                        format!("expected struct, found `{}`", self.type_name(&other)),
+                    )),
+                }
+            }
+            ExprKind::MethodCall { target, name, args } => {
+                let target_type = self.infer(target)?;
+                let struct_name = match self.resolve(&target_type) {
+                    InferType::Struct(struct_name) => struct_name,
+                    other => {
+                        return Err(Error::new(
+                            target.line,
+                            format!("expected struct, found `{}`", self.type_name(&other)),
+                        ));
+                    }
+                };
+                let method = self
+                    .method_info(&struct_name, name)
+                    .cloned()
+                    .ok_or_else(|| {
+                        Error::new(
+                            expr.line,
+                            format!("type `{struct_name}` has no method `{name}`"),
+                        )
+                    })?;
+
+                if args.len() != method.params.len() {
+                    return Err(Error::new(
+                        expr.line,
+                        format!(
+                            "method `{struct_name}::{name}` expects {} arguments, got {}",
+                            method.params.len(),
+                            args.len()
+                        ),
+                    ));
+                }
+                for (param, arg) in method.params.iter().zip(args) {
+                    let arg_type = self.infer(arg)?;
+                    self.unify(param, &arg_type, arg.line)?;
+                }
+                Ok(method.ret)
             }
         }
     }
@@ -608,6 +920,7 @@ impl TypeChecker {
             | (InferType::Bool, InferType::Bool)
             | (InferType::Unit, InferType::Unit) => Ok(()),
             (InferType::List(a), InferType::List(b)) => self.unify(a, b, line),
+            (InferType::Struct(a), InferType::Struct(b)) if a == b => Ok(()),
             (
                 InferType::Function(expected_params, expected_ret),
                 InferType::Function(actual_params, actual_ret),

@@ -29,6 +29,8 @@ pub enum TokenKind {
     Or,
     Not,
     Print,
+    Struct,
+    Impl,
 
     // Punctuation.
     LParen,
@@ -40,6 +42,7 @@ pub enum TokenKind {
     Comma,
     Semicolon,
     Colon,
+    Dot,
 
     // Operators.
     Plus,
@@ -95,6 +98,7 @@ pub fn tokenize(source: &str) -> Result<Vec<Token>, Error> {
             ',' => tokens.push(lexer.single(TokenKind::Comma)),
             ';' => tokens.push(lexer.single(TokenKind::Semicolon)),
             ':' => tokens.push(lexer.single(TokenKind::Colon)),
+            '.' => tokens.push(lexer.single(TokenKind::Dot)),
             '+' => tokens.push(lexer.single(TokenKind::Plus)),
             '-' => {
                 let line = lexer.line;
@@ -298,6 +302,8 @@ impl Lexer {
             "hya" => TokenKind::Or,
             "la" => TokenKind::Not,
             "quete" => TokenKind::Print,
+            "canta" => TokenKind::Struct,
+            "carasta" => TokenKind::Impl,
             _ => TokenKind::Ident(text),
         };
         Token { kind, line }

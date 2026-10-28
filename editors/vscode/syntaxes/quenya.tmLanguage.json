@@ -7,6 +7,8 @@
     { "include": "#strings" },
     { "include": "#function-declaration" },
     { "include": "#variable-declaration" },
+    { "include": "#struct-declaration" },
+    { "include": "#impl-declaration" },
     { "include": "#keywords" },
     { "include": "#types" },
     { "include": "#function-call" },
@@ -48,6 +50,20 @@
         "2": { "name": "variable.other.quenya" }
       }
     },
+    "struct-declaration": {
+      "match": "\\b(canta)[ \\t]+([\\p{L}_][\\p{L}\\p{N}_]*)",
+      "captures": {
+        "1": { "name": "storage.type.quenya" },
+        "2": { "name": "entity.name.type.quenya" }
+      }
+    },
+    "impl-declaration": {
+      "match": "\\b(carasta)[ \\t]+([\\p{L}_][\\p{L}\\p{N}_]*)",
+      "captures": {
+        "1": { "name": "storage.type.quenya" },
+        "2": { "name": "entity.name.type.quenya" }
+      }
+    },
     "keywords": {
       "patterns": [
         {
@@ -55,12 +71,16 @@
           "name": "support.function.builtin.quenya"
         },
         {
-          "match": "\\b(ea|maita)\\b",
+          "match": "\\b(ea|maita|canta|carasta)\\b",
           "name": "storage.type.quenya"
         },
         {
           "match": "\\b(entul|qui|mal|ya|ilya|mi|rac|lelya)\\b",
           "name": "keyword.control.quenya"
+        },
+        {
+          "match": "\\bimmo\\b",
+          "name": "variable.language.self.quenya"
         },
         {
           "match": "\\bnaite\\b",
@@ -91,7 +111,7 @@
       "name": "constant.numeric.integer.quenya"
     },
     "operators": {
-      "match": "==|!=|<=|>=|->|[=+*/%<>:-]",
+      "match": "==|!=|<=|>=|->|[=+*/%<>:.-]",
       "name": "keyword.operator.quenya"
     },
     "braces": {
