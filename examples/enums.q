@@ -5,14 +5,10 @@ cilmë Shape {
 }
 
 maita area(s: Shape) -> Notessë {
-    nam s {
-        Shape::Circle { radius: r } => {
-            entul 3 * r * r;
-        }
-        Shape::Rectangle { width: w, height: h } => {
-            entul w * h;
-        }
-    }
+    entul nam s {
+        Shape::Circle { radius: r } => 3 * r * r,
+        Shape::Rectangle { width: w, height: h } => w * h,
+    };
 }
 
 essë c = Shape::Circle { radius: 1 };

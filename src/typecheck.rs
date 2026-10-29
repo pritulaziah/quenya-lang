@@ -4,10 +4,10 @@
 //! Quenya: it walks the AST after parsing and before interpretation.
 //!
 //! The checker infers local variable types and checks function signatures,
-//! calls, operators, lists, conditions, returns, structs, enums, patterns,
-//! and methods. It is deliberately small: there are no generics, traits, or
-//! ownership yet. The builtins `notië` and `napan` are special-cased until the
-//! language gets traits.
+//! calls, operators, lists, conditions, returns, block and match expressions,
+//! structs, enums, patterns, and methods. It is deliberately small: there are
+//! no generics, traits, or ownership yet. The builtins `notië` and `napan` are
+//! special-cased until the language gets traits.
 //!
 //! The variants below use English names for code readability. `Display`
 //! prints the Quenya source names: `Notessë`, `Quetta`, `Nanwa`, `Er`,
@@ -17,7 +17,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use crate::ast::{
-    BinaryOp, EnumVariantDef, Expr, ExprKind, FieldDef, FieldInit, FieldPattern, MatchArm,
+    BinaryOp, EnumVariantDef, Expr, ExprKind, FieldDef, FieldInit, FieldPattern, MatchExprArm,
     MethodDef, Pattern, Stmt, StmtKind, Type, UnaryOp,
 };
 use crate::error::Error;
@@ -316,7 +316,6 @@ impl TypeChecker {
             }
             StmtKind::Struct { name, fields } => self.check_struct(stmt.line, name, fields),
             StmtKind::Enum { name, variants } => self.check_enum(stmt.line, name, variants),
-            StmtKind::Match { value, arms } => self.check_match(stmt.line, value, arms),
             StmtKind::Impl { name, methods } => self.check_impl(stmt.line, name, methods),
             StmtKind::Function {
                 name,
@@ -491,7 +490,12 @@ impl TypeChecker {
         Ok(())
     }
 
-    fn check_match(&mut self, line: usize, value: &Expr, arms: &[MatchArm]) -> Result<(), Error> {
+    fn check_match_expr(
+        &mut self,
+        line: usize,
+        value: &Expr,
+        arms: &[MatchExprArm],
+    ) -> Result<InferType, Error> {
         if arms.is_empty() {
             return Err(Error::new(line, "match must have at least one arm"));
         }
@@ -505,13 +509,24 @@ impl TypeChecker {
             ));
         }
 
+        let mut result_type = None;
         for arm in arms {
             self.scopes.push(HashMap::new());
             let result = self
                 .check_pattern(&arm.pattern, &value_type, arm.line)
-                .and_then(|_| self.check_block(&arm.body));
+                .and_then(|_| self.infer(&arm.body));
             self.scopes.pop();
-            result?;
+            let body_type = result?;
+
+            // An arm that definitely returns has no value type to unify.
+            if expr_returns(&arm.body) {
+                continue;
+            }
+            if let Some(expected) = &result_type {
+                self.unify(expected, &body_type, arm.body.line)?;
+            } else {
+                result_type = Some(body_type);
+            }
         }
 
         let patterns: Vec<&Pattern> = arms.iter().map(|arm| &arm.pattern).collect();
@@ -521,7 +536,7 @@ impl TypeChecker {
                 "match is not exhaustive; add a wildcard arm",
             ));
         }
-        Ok(())
+        Ok(result_type.unwrap_or(InferType::Unit))
     }
 
     fn check_pattern(
@@ -938,6 +953,23 @@ impl TypeChecker {
                 }
                 Ok(InferType::List(Box::new(first)))
             }
+            ExprKind::Block { statements, tail } => {
+                self.scopes.push(HashMap::new());
+                let mut result = Ok(());
+                for stmt in statements {
+                    if let Err(error) = self.check_stmt(stmt) {
+                        result = Err(error);
+                        break;
+                    }
+                }
+                let result = result.and_then(|_| match tail {
+                    Some(tail) => self.infer(tail),
+                    None => Ok(InferType::Unit),
+                });
+                self.scopes.pop();
+                result
+            }
+            ExprKind::Match { value, arms } => self.check_match_expr(expr.line, value, arms),
             ExprKind::Variable(name) => self
                 .lookup(name)
                 .ok_or_else(|| Error::new(expr.line, format!("undefined variable `{name}`"))),
@@ -1458,15 +1490,43 @@ fn block_returns(body: &[Stmt]) -> bool {
 fn stmt_returns(stmt: &Stmt) -> bool {
     match &stmt.kind {
         StmtKind::Return(_) => true,
+        StmtKind::Let { value, .. } => expr_returns(value),
+        StmtKind::Assign { value, .. } => expr_returns(value),
+        StmtKind::IndexAssign {
+            target,
+            index,
+            value,
+        } => expr_returns(target) || expr_returns(index) || expr_returns(value),
+        StmtKind::FieldAssign { target, value, .. } => expr_returns(target) || expr_returns(value),
+        StmtKind::Print(expr) => expr_returns(expr),
         StmtKind::If {
+            condition,
             then_branch,
-            else_branch: Some(else_branch),
-            ..
-        } => block_returns(then_branch) && stmt_returns(else_branch),
-        StmtKind::Match { arms, .. } => {
-            !arms.is_empty() && arms.iter().all(|arm| block_returns(&arm.body))
+            else_branch,
+        } => {
+            expr_returns(condition)
+                || match else_branch {
+                    Some(else_branch) => block_returns(then_branch) && stmt_returns(else_branch),
+                    None => false,
+                }
         }
+        StmtKind::While { condition, .. } => expr_returns(condition),
+        StmtKind::For { iterable, .. } => expr_returns(iterable),
+        StmtKind::Expression(expr) => expr_returns(expr),
         StmtKind::Block(body) => block_returns(body),
+        _ => false,
+    }
+}
+
+fn expr_returns(expr: &Expr) -> bool {
+    match &expr.kind {
+        ExprKind::Block { statements, tail } => {
+            block_returns(statements) || tail.as_deref().map(expr_returns).unwrap_or(false)
+        }
+        ExprKind::Match { value, arms } => {
+            expr_returns(value)
+                || (!arms.is_empty() && arms.iter().all(|arm| expr_returns(&arm.body)))
+        }
         _ => false,
     }
 }

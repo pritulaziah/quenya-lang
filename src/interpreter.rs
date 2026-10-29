@@ -2,6 +2,7 @@
 //!
 //! `execute` runs statements. `eval` computes expressions.
 //! `Flow` carries `entul`, `rac`, and `lelya` through nested blocks.
+//! `EvalError` lets a block expression propagate the same flow.
 
 use std::cell::RefCell;
 use std::io::Write;
@@ -18,6 +19,42 @@ enum Flow {
     Return(Value),
     Break(usize),
     Continue(usize),
+}
+
+// Expression evaluation can either produce a value or escape through
+// `entul`, `rac`, or `lelya`. A block expression makes this necessary.
+enum EvalError {
+    Error(Error),
+    Flow(Flow),
+}
+
+impl From<Error> for EvalError {
+    fn from(error: Error) -> Self {
+        EvalError::Error(error)
+    }
+}
+
+fn eval_or_flow(
+    expr: &Expr,
+    env: &Rc<RefCell<Environment>>,
+    out: &mut dyn Write,
+) -> Result<Result<Value, Flow>, Error> {
+    match eval(expr, env, out) {
+        Ok(value) => Ok(Ok(value)),
+        Err(EvalError::Flow(flow)) => Ok(Err(flow)),
+        Err(EvalError::Error(error)) => Err(error),
+    }
+}
+
+// Evaluate an expression in a statement context. A control-flow escape is
+// returned to the enclosing statement.
+macro_rules! eval_value {
+    ($expr:expr, $env:expr, $out:expr) => {
+        match eval_or_flow($expr, $env, $out)? {
+            Ok(value) => value,
+            Err(flow) => return Ok(flow),
+        }
+    };
 }
 
 /// Run a program in the given environment.
@@ -53,13 +90,13 @@ fn execute(
     match &stmt.kind {
         // Define in the current scope. Types are checked before execution.
         StmtKind::Let { name, value, .. } => {
-            let value = eval(value, env, out)?;
+            let value = eval_value!(value, env, out);
             env.borrow_mut().define(name.clone(), value);
             Ok(Flow::Normal)
         }
         // Assignment walks up the scope chain.
         StmtKind::Assign { name, value } => {
-            let value = eval(value, env, out)?;
+            let value = eval_value!(value, env, out);
             if env.borrow_mut().assign(name, value) {
                 Ok(Flow::Normal)
             } else {
@@ -75,10 +112,10 @@ fn execute(
             index,
             value,
         } => {
-            let target_value = eval(target, env, out)?;
+            let target_value = eval_value!(target, env, out);
             let index_line = index.line;
-            let index_value = eval(index, env, out)?;
-            let value = eval(value, env, out)?;
+            let index_value = eval_value!(index, env, out);
+            let value = eval_value!(value, env, out);
             match target_value {
                 Value::List(list) => {
                     let index = as_index(index_value, index_line)?;
@@ -107,8 +144,8 @@ fn execute(
             name,
             value,
         } => {
-            let target_value = eval(target, env, out)?;
-            let value = eval(value, env, out)?;
+            let target_value = eval_value!(target, env, out);
+            let value = eval_value!(value, env, out);
             match target_value {
                 Value::Struct(instance) => {
                     let mut instance = instance.borrow_mut();
@@ -129,7 +166,7 @@ fn execute(
         }
         // Write to the output sink. Tests pass a `Vec<u8>`.
         StmtKind::Print(expr) => {
-            let value = eval(expr, env, out)?;
+            let value = eval_value!(expr, env, out);
             writeln!(out, "{value}")
                 .map_err(|error| Error::new(stmt.line, format!("write error: {error}")))?;
             Ok(Flow::Normal)
@@ -141,7 +178,7 @@ fn execute(
             else_branch,
         } => {
             let line = condition.line;
-            let condition = eval(condition, env, out)?;
+            let condition = eval_value!(condition, env, out);
             if as_bool(condition, line)? {
                 execute_block(then_branch, env, out)
             } else if let Some(else_branch) = else_branch {
@@ -154,7 +191,7 @@ fn execute(
         StmtKind::While { condition, body } => {
             let line = condition.line;
             loop {
-                let condition = eval(condition, env, out)?;
+                let condition = eval_value!(condition, env, out);
                 if !as_bool(condition, line)? {
                     break;
                 }
@@ -173,7 +210,7 @@ fn execute(
             iterable,
             body,
         } => {
-            let items = match eval(iterable, env, out)? {
+            let items = match eval_value!(iterable, env, out) {
                 Value::List(list) => list.borrow().clone(),
                 other => {
                     return Err(Error::new(
@@ -203,20 +240,6 @@ fn execute(
         // Struct and enum definitions are checked before execution.
         StmtKind::Struct { .. } => Ok(Flow::Normal),
         StmtKind::Enum { .. } => Ok(Flow::Normal),
-        // A match runs the body of the first arm whose pattern matches.
-        StmtKind::Match { value, arms } => {
-            let value = eval(value, env, out)?;
-            for arm in arms {
-                let arm_env = Environment::new_child(env.clone());
-                if match_pattern(&arm.pattern, &value, &arm_env) {
-                    return execute_block(&arm.body, &arm_env, out);
-                }
-            }
-            Err(Error::new(
-                stmt.line,
-                format!("no match arm matched {value}"),
-            ))
-        }
         // Methods are functions with a mangled name. The first parameter
         // is `immo`, so a method call can pass the receiver as its first
         // argument.
@@ -256,13 +279,13 @@ fn execute(
         // Return unit when there is no value.
         StmtKind::Return(value) => {
             let value = match value {
-                Some(expr) => eval(expr, env, out)?,
+                Some(expr) => eval_value!(expr, env, out),
                 None => Value::Unit,
             };
             Ok(Flow::Return(value))
         }
         StmtKind::Expression(expr) => {
-            eval(expr, env, out)?;
+            eval_value!(expr, env, out);
             Ok(Flow::Normal)
         }
         StmtKind::Block(body) => execute_block(body, env, out),
@@ -285,7 +308,11 @@ fn execute_block(
     Ok(Flow::Normal)
 }
 
-fn eval(expr: &Expr, env: &Rc<RefCell<Environment>>, out: &mut dyn Write) -> Result<Value, Error> {
+fn eval(
+    expr: &Expr,
+    env: &Rc<RefCell<Environment>>,
+    out: &mut dyn Write,
+) -> Result<Value, EvalError> {
     match &expr.kind {
         ExprKind::Int(value) => Ok(Value::Int(*value)),
         ExprKind::Str(value) => Ok(Value::Str(value.clone())),
@@ -297,11 +324,35 @@ fn eval(expr: &Expr, env: &Rc<RefCell<Environment>>, out: &mut dyn Write) -> Res
             }
             Ok(Value::List(Rc::new(RefCell::new(values))))
         }
+        ExprKind::Block { statements, tail } => {
+            let block_env = Environment::new_child(env.clone());
+            for stmt in statements {
+                match execute(stmt, &block_env, out).map_err(EvalError::Error)? {
+                    Flow::Normal => {}
+                    flow => return Err(EvalError::Flow(flow)),
+                }
+            }
+            match tail {
+                Some(tail) => eval(tail, &block_env, out),
+                None => Ok(Value::Unit),
+            }
+        }
+        ExprKind::Match { value, arms } => {
+            let value = eval(value, env, out)?;
+            for arm in arms {
+                let arm_env = Environment::new_child(env.clone());
+                if match_pattern(&arm.pattern, &value, &arm_env) {
+                    return eval(&arm.body, &arm_env, out);
+                }
+            }
+            Err(Error::new(expr.line, format!("no match arm matched {value}")).into())
+        }
         // Look up the name in the scope chain.
         ExprKind::Variable(name) => env
             .borrow()
             .get(name)
-            .ok_or_else(|| Error::new(expr.line, format!("undefined variable `{name}`"))),
+            .ok_or_else(|| Error::new(expr.line, format!("undefined variable `{name}`")))
+            .map_err(EvalError::Error),
         // Use checked arithmetic and report overflow.
         ExprKind::Unary(operator, operand) => {
             let value = eval(operand, env, out)?;
@@ -310,18 +361,17 @@ fn eval(expr: &Expr, env: &Rc<RefCell<Environment>>, out: &mut dyn Write) -> Res
                     Value::Int(value) => value
                         .checked_neg()
                         .map(Value::Int)
-                        .ok_or_else(|| Error::new(expr.line, "integer overflow")),
-                    other => Err(Error::new(
-                        expr.line,
-                        format!("expected integer, got {other}"),
-                    )),
+                        .ok_or_else(|| Error::new(expr.line, "integer overflow"))
+                        .map_err(EvalError::Error),
+                    other => {
+                        Err(Error::new(expr.line, format!("expected integer, got {other}")).into())
+                    }
                 },
                 UnaryOp::Not => match value {
                     Value::Bool(value) => Ok(Value::Bool(!value)),
-                    other => Err(Error::new(
-                        expr.line,
-                        format!("expected boolean, got {other}"),
-                    )),
+                    other => {
+                        Err(Error::new(expr.line, format!("expected boolean, got {other}")).into())
+                    }
                 },
             }
         }
@@ -342,14 +392,15 @@ fn eval(expr: &Expr, env: &Rc<RefCell<Environment>>, out: &mut dyn Write) -> Res
                                 function.params.len(),
                                 args.len()
                             ),
-                        ));
+                        )
+                        .into());
                     }
 
                     let mut values = Vec::with_capacity(args.len());
                     for arg in args {
                         values.push(eval(arg, env, out)?);
                     }
-                    call_function(function, values, expr.line, out)
+                    call_function(function, values, expr.line, out).map_err(EvalError::Error)
                 }
                 Value::Builtin(builtin) => {
                     if args.len() != builtin.arity() {
@@ -361,16 +412,17 @@ fn eval(expr: &Expr, env: &Rc<RefCell<Environment>>, out: &mut dyn Write) -> Res
                                 builtin.arity(),
                                 args.len()
                             ),
-                        ));
+                        )
+                        .into());
                     }
 
                     let mut values = Vec::with_capacity(args.len());
                     for arg in args {
                         values.push(eval(arg, env, out)?);
                     }
-                    call_builtin(builtin, values, expr.line)
+                    call_builtin(builtin, values, expr.line).map_err(EvalError::Error)
                 }
-                other => Err(Error::new(expr.line, format!("{other} is not callable"))),
+                other => Err(Error::new(expr.line, format!("{other} is not callable")).into()),
             }
         }
         ExprKind::Index { target, index } => {
@@ -381,20 +433,21 @@ fn eval(expr: &Expr, env: &Rc<RefCell<Environment>>, out: &mut dyn Write) -> Res
                 Value::List(list) => {
                     let index = as_index(index_value, index_line)?;
                     let items = list.borrow();
-                    items.get(index).cloned().ok_or_else(|| {
-                        Error::new(
-                            index_line,
-                            format!(
-                                "index {index} out of bounds for list of length {}",
-                                items.len()
-                            ),
-                        )
-                    })
+                    items
+                        .get(index)
+                        .cloned()
+                        .ok_or_else(|| {
+                            Error::new(
+                                index_line,
+                                format!(
+                                    "index {index} out of bounds for list of length {}",
+                                    items.len()
+                                ),
+                            )
+                        })
+                        .map_err(EvalError::Error)
                 }
-                other => Err(Error::new(
-                    target.line,
-                    format!("expected list, got {other}"),
-                )),
+                other => Err(Error::new(target.line, format!("expected list, got {other}")).into()),
             }
         }
         ExprKind::Struct { name, fields } => {
@@ -427,17 +480,20 @@ fn eval(expr: &Expr, env: &Rc<RefCell<Environment>>, out: &mut dyn Write) -> Res
             match target_value {
                 Value::Struct(instance) => {
                     let instance = instance.borrow();
-                    instance.get(name).cloned().ok_or_else(|| {
-                        Error::new(
-                            expr.line,
-                            format!("type `{}` has no field `{name}`", instance.type_name),
-                        )
-                    })
+                    instance
+                        .get(name)
+                        .cloned()
+                        .ok_or_else(|| {
+                            Error::new(
+                                expr.line,
+                                format!("type `{}` has no field `{name}`", instance.type_name),
+                            )
+                        })
+                        .map_err(EvalError::Error)
                 }
-                other => Err(Error::new(
-                    target.line,
-                    format!("expected struct, got {other}"),
-                )),
+                other => {
+                    Err(Error::new(target.line, format!("expected struct, got {other}")).into())
+                }
             }
         }
         ExprKind::MethodCall { target, name, args } => {
@@ -448,7 +504,8 @@ fn eval(expr: &Expr, env: &Rc<RefCell<Environment>>, out: &mut dyn Write) -> Res
                     return Err(Error::new(
                         target.line,
                         format!("method call requires a struct, got {other}"),
-                    ));
+                    )
+                    .into());
                 }
             };
 
@@ -466,7 +523,8 @@ fn eval(expr: &Expr, env: &Rc<RefCell<Environment>>, out: &mut dyn Write) -> Res
                     return Err(Error::new(
                         expr.line,
                         format!("`{method_name}` is not a function: {other}"),
-                    ));
+                    )
+                    .into());
                 }
             };
 
@@ -479,7 +537,8 @@ fn eval(expr: &Expr, env: &Rc<RefCell<Environment>>, out: &mut dyn Write) -> Res
                         function.params.len() - 1,
                         args.len()
                     ),
-                ));
+                )
+                .into());
             }
 
             let mut values = Vec::with_capacity(args.len() + 1);
@@ -487,7 +546,7 @@ fn eval(expr: &Expr, env: &Rc<RefCell<Environment>>, out: &mut dyn Write) -> Res
             for arg in args {
                 values.push(eval(arg, env, out)?);
             }
-            call_function(function, values, expr.line, out)
+            call_function(function, values, expr.line, out).map_err(EvalError::Error)
         }
     }
 }
@@ -579,7 +638,7 @@ fn eval_binary(
     line: usize,
     env: &Rc<RefCell<Environment>>,
     out: &mut dyn Write,
-) -> Result<Value, Error> {
+) -> Result<Value, EvalError> {
     if matches!(operator, BinaryOp::And | BinaryOp::Or) {
         let left_value = eval(left, env, out)?;
         let left_bool = as_bool(left_value, left.line)?;
@@ -613,7 +672,8 @@ fn eval_binary(
             (Value::Int(a), Value::Int(b)) => a
                 .checked_add(b)
                 .map(Value::Int)
-                .ok_or_else(|| Error::new(line, "integer overflow")),
+                .ok_or_else(|| Error::new(line, "integer overflow"))
+                .map_err(EvalError::Error),
             (Value::Str(mut a), Value::Str(b)) => {
                 a.push_str(&b);
                 Ok(Value::Str(a))
@@ -623,37 +683,37 @@ fn eval_binary(
                 items.extend(b.borrow().iter().cloned());
                 Ok(Value::List(Rc::new(RefCell::new(items))))
             }
-            (a, b) => Err(Error::new(line, format!("cannot add {a} and {b}"))),
+            (a, b) => Err(Error::new(line, format!("cannot add {a} and {b}")).into()),
         },
-        BinaryOp::Sub => int_op(left_value, right_value, line, |a, b| a.checked_sub(b)),
-        BinaryOp::Mul => int_op(left_value, right_value, line, |a, b| a.checked_mul(b)),
+        BinaryOp::Sub => {
+            int_op(left_value, right_value, line, |a, b| a.checked_sub(b)).map_err(EvalError::Error)
+        }
+        BinaryOp::Mul => {
+            int_op(left_value, right_value, line, |a, b| a.checked_mul(b)).map_err(EvalError::Error)
+        }
         BinaryOp::Div => match (left_value, right_value) {
             (Value::Int(a), Value::Int(b)) => {
                 if b == 0 {
-                    return Err(Error::new(line, "division by zero"));
+                    return Err(Error::new(line, "division by zero").into());
                 }
                 a.checked_div(b)
                     .map(Value::Int)
                     .ok_or_else(|| Error::new(line, "integer overflow"))
+                    .map_err(EvalError::Error)
             }
-            (a, b) => Err(Error::new(
-                line,
-                format!("expected integers, got {a} and {b}"),
-            )),
+            (a, b) => Err(Error::new(line, format!("expected integers, got {a} and {b}")).into()),
         },
         BinaryOp::Rem => match (left_value, right_value) {
             (Value::Int(a), Value::Int(b)) => {
                 if b == 0 {
-                    return Err(Error::new(line, "division by zero"));
+                    return Err(Error::new(line, "division by zero").into());
                 }
                 a.checked_rem(b)
                     .map(Value::Int)
                     .ok_or_else(|| Error::new(line, "integer overflow"))
+                    .map_err(EvalError::Error)
             }
-            (a, b) => Err(Error::new(
-                line,
-                format!("expected integers, got {a} and {b}"),
-            )),
+            (a, b) => Err(Error::new(line, format!("expected integers, got {a} and {b}")).into()),
         },
         BinaryOp::Eq => Ok(Value::Bool(values_equal(&left_value, &right_value))),
         BinaryOp::Ne => Ok(Value::Bool(!values_equal(&left_value, &right_value))),
@@ -666,7 +726,7 @@ fn eval_binary(
                     BinaryOp::Ge => a >= b,
                     _ => unreachable!(),
                 })),
-                (a, b) => Err(Error::new(line, format!("cannot compare {a} and {b}"))),
+                (a, b) => Err(Error::new(line, format!("cannot compare {a} and {b}")).into()),
             }
         }
         BinaryOp::And | BinaryOp::Or => unreachable!(),

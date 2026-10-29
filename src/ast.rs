@@ -156,11 +156,11 @@ pub enum Pattern {
     },
 }
 
-/// One arm of a `nam` statement.
+/// One arm of a `nam` expression.
 #[derive(Debug, Clone)]
-pub struct MatchArm {
+pub struct MatchExprArm {
     pub pattern: Pattern,
-    pub body: Vec<Stmt>,
+    pub body: Expr,
     pub line: usize,
 }
 
@@ -182,6 +182,16 @@ pub enum ExprKind {
     Bool(bool),
     /// A list literal, for example `[1, 2, 3]`.
     List(Vec<Expr>),
+    /// A block expression. Its value is the tail expression, or unit.
+    Block {
+        statements: Vec<Stmt>,
+        tail: Option<Box<Expr>>,
+    },
+    /// A match expression. Each arm produces a value.
+    Match {
+        value: Box<Expr>,
+        arms: Vec<MatchExprArm>,
+    },
     /// A variable lookup, for example `x`.
     Variable(String),
     /// A unary operation.
@@ -274,8 +284,6 @@ pub enum StmtKind {
         name: String,
         variants: Vec<EnumVariantDef>,
     },
-    /// `nam value { Pattern => { ... } ... }`
-    Match { value: Expr, arms: Vec<MatchArm> },
     /// `carasta Name { maita method(immo, ...) { ... } }`
     Impl {
         name: String,

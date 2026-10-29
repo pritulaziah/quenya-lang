@@ -59,7 +59,8 @@ A struct or enum name is a user-defined type.
 | method call | `elda.vista("Anar")` |
 | enum | `cilmë Color { Red, Green }` |
 | variant | `Color::Red` / `Shape::Circle { radius: 1 }` |
-| match | `nam x { Pattern => { ... } ... }` |
+| block expression | `{ essë y = 1; y + 1 }` |
+| match | `nam x { 1 => "one", _ => "other" }` |
 
 ## Built-in Functions
 
@@ -79,6 +80,15 @@ A struct or enum name is a user-defined type.
 - A function must be declared before a call.
 - Function type: `maita(Notessë) -> Notessë`.
 
+## Block Expressions
+
+- `{ statements; tail }` is an expression.
+- Its value is `tail`, or `Er` when there is no tail.
+- `{}` is `Er`.
+- A block expression creates a new scope.
+- `entul`, `rac`, and `lelya` inside it escape the block.
+- A trailing expression must not have `;`.
+
 ## Structs and Methods
 
 - `canta Name { field: Type, ... }` declares a struct.
@@ -97,12 +107,15 @@ A struct or enum name is a user-defined type.
 - Variants are unit or struct-like. Tuple variants are not supported.
 - `Name::Variant` creates a unit variant.
 - `Name::Variant { field: value }` creates a struct-like variant.
-- `nam value { Pattern => { ... } ... }` runs one matching arm.
+- `nam value { Pattern => expr, ... }` is an expression.
+- At statement position it can be used without a semicolon.
+- Arms are expressions. Non-block arms need commas; block arms may
+  omit them.
+- Arms must have compatible types. An arm that definitely returns
+  does not constrain the result type.
 - Patterns: `_`, a binding, literals, `Type::Variant`, struct patterns.
 - Pattern fields must be complete; `..` is not supported.
 - The checker requires an exhaustive match.
-- `nam` is a statement, like `qui`.
-- Match arms are blocks. Commas between arms are optional.
 - Enum values compare and print structurally.
 - Enums and structs share one type namespace.
 - An enum field type must be declared before use.
@@ -129,7 +142,8 @@ A struct or enum name is a user-defined type.
 - It checks types, arity, returns, conditions, loops, and `rac`/`lelya`.
 - It checks struct fields and method signatures.
 - It checks enum variants, pattern types, and match exhaustiveness.
+- It checks block expression tail types and match expression arm types.
 - An empty list gets its type from context: `essë xs = []; napan(xs, 1);`.
 - `essë xs = [];` is an error.
-- `qui` and `nam` are statements, not expressions.
+- `qui` is a statement, not an expression.
 - `notië` and `napan` are free functions, not methods.

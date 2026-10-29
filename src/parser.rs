@@ -2,10 +2,11 @@
 //!
 //! It uses recursive descent. Each grammar rule is one function.
 //! Expression rules follow precedence from low to high:
-//! or, and, equality, comparison, term, factor, unary, call.
+//! or, and, equality, comparison, term, factor, unary, postfix.
+//! Blocks and match expressions are primary expressions.
 
 use crate::ast::{
-    BinaryOp, EnumVariantDef, Expr, ExprKind, FieldDef, FieldInit, FieldPattern, MatchArm,
+    BinaryOp, EnumVariantDef, Expr, ExprKind, FieldDef, FieldInit, FieldPattern, MatchExprArm,
     MethodDef, Param, Pattern, Stmt, StmtKind, Type, UnaryOp,
 };
 use crate::error::Error;
@@ -62,9 +63,6 @@ impl Parser {
         if self.match_token(&TokenKind::Enum) {
             return self.enum_statement(line);
         }
-        if self.match_token(&TokenKind::Match) {
-            return self.match_statement(line);
-        }
         if self.match_token(&TokenKind::If) {
             return self.if_statement(line);
         }
@@ -86,41 +84,17 @@ impl Parser {
         if self.match_token(&TokenKind::Print) {
             return self.print_statement(line);
         }
-        if self.check(&TokenKind::LBrace) {
-            let body = self.block()?;
-            return Ok(Stmt {
-                kind: StmtKind::Block(body),
-                line,
-            });
-        }
-
         let expr = self.expression()?;
         if self.match_token(&TokenKind::Assign) {
-            let value = self.expression()?;
-            self.consume(&TokenKind::Semicolon, "expected `;` after assignment")?;
-            return match expr.kind {
-                ExprKind::Variable(name) => Ok(Stmt {
-                    kind: StmtKind::Assign { name, value },
-                    line,
-                }),
-                ExprKind::Index { target, index } => Ok(Stmt {
-                    kind: StmtKind::IndexAssign {
-                        target: *target,
-                        index: *index,
-                        value,
-                    },
-                    line,
-                }),
-                ExprKind::Field { target, name } => Ok(Stmt {
-                    kind: StmtKind::FieldAssign {
-                        target: *target,
-                        name,
-                        value,
-                    },
-                    line,
-                }),
-                _ => Err(Error::new(line, "invalid assignment target")),
-            };
+            return self.assignment_statement(expr, line);
+        }
+        // Block and match expressions are block-like: a semicolon is optional.
+        if matches!(&expr.kind, ExprKind::Block { .. } | ExprKind::Match { .. }) {
+            self.match_token(&TokenKind::Semicolon);
+            return Ok(Stmt {
+                kind: StmtKind::Expression(expr),
+                line,
+            });
         }
 
         self.consume(&TokenKind::Semicolon, "expected `;` after expression")?;
@@ -128,6 +102,34 @@ impl Parser {
             kind: StmtKind::Expression(expr),
             line,
         })
+    }
+
+    fn assignment_statement(&mut self, expr: Expr, line: usize) -> Result<Stmt, Error> {
+        let value = self.expression()?;
+        self.consume(&TokenKind::Semicolon, "expected `;` after assignment")?;
+        match expr.kind {
+            ExprKind::Variable(name) => Ok(Stmt {
+                kind: StmtKind::Assign { name, value },
+                line,
+            }),
+            ExprKind::Index { target, index } => Ok(Stmt {
+                kind: StmtKind::IndexAssign {
+                    target: *target,
+                    index: *index,
+                    value,
+                },
+                line,
+            }),
+            ExprKind::Field { target, name } => Ok(Stmt {
+                kind: StmtKind::FieldAssign {
+                    target: *target,
+                    name,
+                    value,
+                },
+                line,
+            }),
+            _ => Err(Error::new(line, "invalid assignment target")),
+        }
     }
 
     fn let_statement(&mut self, line: usize) -> Result<Stmt, Error> {
@@ -241,8 +243,10 @@ impl Parser {
         })
     }
 
-    // `nam value { Pattern => { ... } ... }`
-    fn match_statement(&mut self, line: usize) -> Result<Stmt, Error> {
+    // `nam value { Pattern => expression, ... }`
+    fn match_expression(&mut self) -> Result<Expr, Error> {
+        let line = self.peek().line;
+        self.consume(&TokenKind::Match, "expected `nam`")?;
         let value = self.expression_with_struct(false)?;
         self.consume(&TokenKind::LBrace, "expected `{` after match value")?;
 
@@ -251,22 +255,34 @@ impl Parser {
             let arm_line = self.peek().line;
             let pattern = self.pattern()?;
             self.consume(&TokenKind::FatArrow, "expected `=>` after pattern")?;
-            let body = self.block()?;
-            arms.push(MatchArm {
+            let body = self.expression_with_struct(true)?;
+            let body_is_block = matches!(&body.kind, ExprKind::Block { .. });
+            arms.push(MatchExprArm {
                 pattern,
                 body,
                 line: arm_line,
             });
-            // Commas between block arms are optional.
-            self.match_token(&TokenKind::Comma);
+
+            if self.match_token(&TokenKind::Comma) {
+                continue;
+            }
+            if self.check(&TokenKind::RBrace) {
+                break;
+            }
+            if !body_is_block {
+                return Err(self.error("expected `,` or `}` after match arm"));
+            }
         }
 
         self.consume(&TokenKind::RBrace, "expected `}` after match arms")?;
         if arms.is_empty() {
             return Err(Error::new(line, "match must have at least one arm"));
         }
-        Ok(Stmt {
-            kind: StmtKind::Match { value, arms },
+        Ok(Expr {
+            kind: ExprKind::Match {
+                value: Box::new(value),
+                arms,
+            },
             line,
         })
     }
@@ -643,6 +659,97 @@ impl Parser {
         })
     }
 
+    // A block expression creates a new scope. Its value is the tail
+    // expression, or unit when there is no tail.
+    fn block_expression(&mut self) -> Result<Expr, Error> {
+        let line = self.peek().line;
+        self.consume(&TokenKind::LBrace, "expected `{`")?;
+
+        let mut statements = Vec::new();
+        let mut tail = None;
+
+        while !self.check(&TokenKind::RBrace) && !self.is_at_end() {
+            // A nested block at the end is a tail expression. Otherwise it
+            // is a block statement whose value is discarded.
+            if self.check(&TokenKind::LBrace) {
+                let block = self.block_expression()?;
+                if self.match_token(&TokenKind::Semicolon) {
+                    statements.push(Stmt {
+                        kind: StmtKind::Expression(block),
+                        line,
+                    });
+                    continue;
+                }
+                if self.check(&TokenKind::RBrace) {
+                    tail = Some(Box::new(block));
+                    break;
+                }
+                statements.push(Stmt {
+                    kind: StmtKind::Expression(block),
+                    line,
+                });
+                continue;
+            }
+
+            if self.starts_statement() {
+                statements.push(self.statement()?);
+                continue;
+            }
+
+            let expr = self.expression()?;
+            let expr_line = expr.line;
+            if self.match_token(&TokenKind::Assign) {
+                statements.push(self.assignment_statement(expr, expr_line)?);
+                continue;
+            }
+            if self.match_token(&TokenKind::Semicolon) {
+                statements.push(Stmt {
+                    kind: StmtKind::Expression(expr),
+                    line: expr_line,
+                });
+                continue;
+            }
+            if self.check(&TokenKind::RBrace) {
+                tail = Some(Box::new(expr));
+                break;
+            }
+            // Match expressions are block-like statements: a following
+            // statement does not need a semicolon.
+            if matches!(&expr.kind, ExprKind::Match { .. }) {
+                statements.push(Stmt {
+                    kind: StmtKind::Expression(expr),
+                    line: expr_line,
+                });
+                continue;
+            }
+            return Err(self.error("expected `;` or `}` after expression"));
+        }
+
+        self.consume(&TokenKind::RBrace, "expected `}` after block expression")?;
+        Ok(Expr {
+            kind: ExprKind::Block { statements, tail },
+            line,
+        })
+    }
+
+    fn starts_statement(&self) -> bool {
+        matches!(
+            self.peek().kind,
+            TokenKind::Let
+                | TokenKind::Fn
+                | TokenKind::Struct
+                | TokenKind::Impl
+                | TokenKind::Enum
+                | TokenKind::If
+                | TokenKind::While
+                | TokenKind::For
+                | TokenKind::Break
+                | TokenKind::Continue
+                | TokenKind::Return
+                | TokenKind::Print
+        )
+    }
+
     // A block creates a new scope at runtime.
     fn block(&mut self) -> Result<Vec<Stmt>, Error> {
         self.consume(&TokenKind::LBrace, "expected `{`")?;
@@ -928,6 +1035,8 @@ impl Parser {
                     })
                 }
             }
+            TokenKind::LBrace => self.block_expression(),
+            TokenKind::Match => self.match_expression(),
             TokenKind::LParen => {
                 self.advance();
                 let expr = self.expression_with_struct(true)?;

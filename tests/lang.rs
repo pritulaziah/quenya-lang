@@ -1045,6 +1045,241 @@ fn pattern_errors() {
 }
 
 #[test]
+fn block_expression_values() {
+    let source = r#"
+        essë x = { essë y = 2; y + 3 };
+        quétë(x);
+        quétë({ 1 + 2 });
+        quétë({});
+        quétë([{ 1 }, { 2 }]);
+    "#;
+    assert_eq!(ok(source), "5\n3\n()\n[1, 2]\n");
+}
+
+#[test]
+fn block_expression_scope() {
+    let source = r#"
+        essë a = 1;
+        essë b = { essë a = 2; a + 1 };
+        quétë(a);
+        quétë(b);
+    "#;
+    assert_eq!(ok(source), "1\n3\n");
+}
+
+#[test]
+fn block_expression_nested_and_struct() {
+    let source = r#"
+        essë x = { { 1 } };
+        quétë(x);
+        canta Point { x: Notessë }
+        essë p = { Point { x: 1 } };
+        quétë(p.x);
+    "#;
+    assert_eq!(ok(source), "1\n1\n");
+}
+
+#[test]
+fn block_expression_in_condition() {
+    let source = r#"
+        qui { essë y = 1; y == 1 } {
+            quétë("yes");
+        }
+    "#;
+    assert_eq!(ok(source), "yes\n");
+}
+
+#[test]
+fn block_expression_return() {
+    let source = r#"
+        maita f() -> Notessë {
+            essë x = { entul 7; 0 };
+            entul x;
+        }
+        quétë(f());
+    "#;
+    assert_eq!(ok(source), "7\n");
+}
+
+#[test]
+fn block_expression_returns_without_tail_return() {
+    let source = r#"
+        maita f() -> Notessë {
+            essë x = { entul 7; 0 };
+        }
+        quétë(f());
+    "#;
+    assert_eq!(ok(source), "7\n");
+}
+
+#[test]
+fn block_expression_loop_control() {
+    let source = r#"
+        essë i = 0;
+        yallumë i < 5 {
+            essë x = { i = i + 1; qui i == 2 { lelya; } i };
+            quétë(x);
+        }
+    "#;
+    assert_eq!(ok(source), "1\n3\n4\n5\n");
+}
+
+#[test]
+fn block_expression_break() {
+    let source = r#"
+        essë i = 0;
+        yallumë naitë {
+            essë x = { i = i + 1; qui i == 3 { rac; } i };
+            quétë(x);
+        }
+        quétë("done");
+    "#;
+    assert_eq!(ok(source), "1\n2\ndone\n");
+}
+
+#[test]
+fn block_expression_assignment() {
+    let source = r#"
+        essë x = 0;
+        essë y = { x = 1; x + 1 };
+        quétë(x);
+        quétë(y);
+    "#;
+    assert_eq!(ok(source), "1\n2\n");
+}
+
+#[test]
+fn block_expression_statement_semicolon() {
+    let source = r#"
+        { quétë("x"); };
+        quétë("y");
+    "#;
+    assert_eq!(ok(source), "x\ny\n");
+}
+
+#[test]
+fn block_expression_in_match_value() {
+    let source = r#"
+        nam { 1 } {
+            1 => { quétë("one"); }
+            _ => { }
+        }
+    "#;
+    assert_eq!(ok(source), "one\n");
+}
+
+#[test]
+fn block_expression_errors() {
+    let error = run(r#"essë x: Notessë = { "a" };"#).unwrap_err();
+    assert!(
+        error.contains("expected `Notessë`, found `Quetta`"),
+        "{error}"
+    );
+    let error = run("essë x: Notessë = { essë y = 1; };").unwrap_err();
+    assert!(error.contains("expected `Notessë`, found `Er`"), "{error}");
+    let error = run("quétë({ entul 1; });").unwrap_err();
+    assert!(error.contains("outside function"), "{error}");
+    let error = run("quétë({ rac; });").unwrap_err();
+    assert!(error.contains("outside loop"), "{error}");
+    let error = run("essë x = { 1 2 };").unwrap_err();
+    assert!(error.contains("expected `;` or `}`"), "{error}");
+}
+
+#[test]
+fn match_expression_values() {
+    let source = r#"
+        cilmë Color { Red, Green }
+        essë c = Color::Green;
+        essë x = nam c {
+            Color::Red => 1,
+            Color::Green => 2,
+        };
+        quétë(x);
+        quétë(nam 1 { 1 => "one", _ => "other" });
+        quétë([nam 1 { 1 => 10, _ => 0 }, nam 2 { 2 => 20, _ => 0 }]);
+    "#;
+    assert_eq!(ok(source), "2\none\n[10, 20]\n");
+}
+
+#[test]
+fn match_expression_return() {
+    let source = r#"
+        cilmë Color { Red, Green }
+        maita f(c: Color) -> Notessë {
+            entul nam c {
+                Color::Red => { entul 1; }
+                Color::Green => 2,
+            };
+        }
+        quétë(f(Color::Red));
+        quétë(f(Color::Green));
+    "#;
+    assert_eq!(ok(source), "1\n2\n");
+}
+
+#[test]
+fn match_expression_block_tail() {
+    let source = r#"
+        essë y = { nam 1 { 1 => 5, _ => 0 } };
+        quétë(y);
+        essë z = nam 1 {
+            1 => { 10 }
+            _ => 0,
+        };
+        quétë(z);
+    "#;
+    assert_eq!(ok(source), "5\n10\n");
+}
+
+#[test]
+fn match_expression_in_condition() {
+    let source = r#"
+        qui nam 1 { 1 => naitë, _ => lá naitë } {
+            quétë("yes");
+        }
+    "#;
+    assert_eq!(ok(source), "yes\n");
+}
+
+#[test]
+fn match_expression_as_statement() {
+    let source = r#"
+        {
+            nam 1 { 1 => { quétë("one"); } _ => { } }
+            quétë("done");
+        }
+    "#;
+    assert_eq!(ok(source), "one\ndone\n");
+}
+
+#[test]
+fn match_expression_errors() {
+    let error = run("essë x = nam 1 { 1 => 1 };").unwrap_err();
+    assert!(error.contains("match is not exhaustive"), "{error}");
+
+    let error = run(r#"essë x = nam 1 { 1 => 1, _ => "a" };"#).unwrap_err();
+    assert!(
+        error.contains("expected `Notessë`, found `Quetta`"),
+        "{error}"
+    );
+
+    let error = run("essë x = nam 1 { 1 => 1 _ => 0 };").unwrap_err();
+    assert!(
+        error.contains("expected `,` or `}` after match arm"),
+        "{error}"
+    );
+
+    let error = run("essë x = nam 1 { };").unwrap_err();
+    assert!(error.contains("at least one arm"), "{error}");
+
+    let error = run("essë x: Quetta = nam 1 { 1 => 1, _ => 0 };").unwrap_err();
+    assert!(
+        error.contains("expected `Quetta`, found `Notessë`"),
+        "{error}"
+    );
+}
+
+#[test]
 fn top_level_return() {
     let error = run("entul 1;").unwrap_err();
     assert!(error.contains("outside function"), "{error}");
