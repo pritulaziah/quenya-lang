@@ -5,7 +5,8 @@
 //! or, and, equality, comparison, term, factor, unary, call.
 
 use crate::ast::{
-    BinaryOp, Expr, ExprKind, FieldDef, FieldInit, MethodDef, Param, Stmt, StmtKind, Type, UnaryOp,
+    BinaryOp, EnumVariantDef, Expr, ExprKind, FieldDef, FieldInit, FieldPattern, MatchArm,
+    MethodDef, Param, Pattern, Stmt, StmtKind, Type, UnaryOp,
 };
 use crate::error::Error;
 use crate::lexer::{Token, TokenKind};
@@ -18,8 +19,9 @@ pub fn parse(tokens: Vec<Token>) -> Result<Vec<Stmt>, Error> {
 struct Parser {
     tokens: Vec<Token>,
     current: usize,
-    // A struct literal and a block both start with `{`. Conditions and
-    // loop iterables disable struct literals at their top level, as Rust does.
+    // A struct literal, an enum variant literal, and a block all start with
+    // `{`. Conditions and loop iterables disable literal braces at their top
+    // level, as Rust does.
     allow_struct_literal: bool,
 }
 
@@ -56,6 +58,12 @@ impl Parser {
         }
         if self.match_token(&TokenKind::Impl) {
             return self.impl_statement(line);
+        }
+        if self.match_token(&TokenKind::Enum) {
+            return self.enum_statement(line);
+        }
+        if self.match_token(&TokenKind::Match) {
+            return self.match_statement(line);
         }
         if self.match_token(&TokenKind::If) {
             return self.if_statement(line);
@@ -189,8 +197,175 @@ impl Parser {
     // `canta Name { field: Type, ... }`
     fn struct_statement(&mut self, line: usize) -> Result<Stmt, Error> {
         let name = self.consume_ident("expected struct name after `canta`")?;
-        self.consume(&TokenKind::LBrace, "expected `{` after struct name")?;
+        let fields = self.field_defs()?;
+        Ok(Stmt {
+            kind: StmtKind::Struct { name, fields },
+            line,
+        })
+    }
 
+    // `cilmë Name { Variant, Variant { field: Type, ... } }`
+    fn enum_statement(&mut self, line: usize) -> Result<Stmt, Error> {
+        let name = self.consume_ident("expected enum name after `cilmë`")?;
+        self.consume(&TokenKind::LBrace, "expected `{` after enum name")?;
+
+        let mut variants = Vec::new();
+        while !self.check(&TokenKind::RBrace) && !self.is_at_end() {
+            let variant_name = self.consume_ident("expected variant name")?;
+            let fields = if self.check(&TokenKind::LBrace) {
+                self.field_defs()?
+            } else if self.check(&TokenKind::LParen) {
+                return Err(Error::new(
+                    self.peek().line,
+                    "tuple enum variants are not supported; use `{ field: Type }`",
+                ));
+            } else {
+                Vec::new()
+            };
+            variants.push(EnumVariantDef {
+                name: variant_name,
+                fields,
+            });
+            if !self.match_token(&TokenKind::Comma) {
+                break;
+            }
+        }
+
+        self.consume(&TokenKind::RBrace, "expected `}` after enum variants")?;
+        if variants.is_empty() {
+            return Err(Error::new(line, "enum must have at least one variant"));
+        }
+        Ok(Stmt {
+            kind: StmtKind::Enum { name, variants },
+            line,
+        })
+    }
+
+    // `nam value { Pattern => { ... } ... }`
+    fn match_statement(&mut self, line: usize) -> Result<Stmt, Error> {
+        let value = self.expression_with_struct(false)?;
+        self.consume(&TokenKind::LBrace, "expected `{` after match value")?;
+
+        let mut arms = Vec::new();
+        while !self.check(&TokenKind::RBrace) && !self.is_at_end() {
+            let arm_line = self.peek().line;
+            let pattern = self.pattern()?;
+            self.consume(&TokenKind::FatArrow, "expected `=>` after pattern")?;
+            let body = self.block()?;
+            arms.push(MatchArm {
+                pattern,
+                body,
+                line: arm_line,
+            });
+            // Commas between block arms are optional.
+            self.match_token(&TokenKind::Comma);
+        }
+
+        self.consume(&TokenKind::RBrace, "expected `}` after match arms")?;
+        if arms.is_empty() {
+            return Err(Error::new(line, "match must have at least one arm"));
+        }
+        Ok(Stmt {
+            kind: StmtKind::Match { value, arms },
+            line,
+        })
+    }
+
+    fn pattern(&mut self) -> Result<Pattern, Error> {
+        let token = self.peek().clone();
+        match token.kind {
+            TokenKind::Int(value) => {
+                self.advance();
+                Ok(Pattern::Int(value))
+            }
+            TokenKind::Minus => {
+                let line = self.peek().line;
+                self.advance();
+                let token = self.peek().clone();
+                match token.kind {
+                    TokenKind::Int(value) => {
+                        self.advance();
+                        value
+                            .checked_neg()
+                            .map(Pattern::Int)
+                            .ok_or_else(|| Error::new(line, "integer pattern is out of range"))
+                    }
+                    _ => Err(Error::new(
+                        line,
+                        "expected an integer after `-` in a pattern",
+                    )),
+                }
+            }
+            TokenKind::Str(value) => {
+                self.advance();
+                Ok(Pattern::Str(value))
+            }
+            TokenKind::True => {
+                self.advance();
+                Ok(Pattern::Bool(true))
+            }
+            TokenKind::Not => {
+                self.advance();
+                self.consume(&TokenKind::True, "expected `naitë` after `lá` in a pattern")?;
+                Ok(Pattern::Bool(false))
+            }
+            TokenKind::Ident(name) => {
+                self.advance();
+                if name == "_" {
+                    return Ok(Pattern::Wildcard);
+                }
+                if self.match_token(&TokenKind::ColonColon) {
+                    let variant = self.consume_ident("expected variant name after `::`")?;
+                    let fields = if self.check(&TokenKind::LBrace) {
+                        self.pattern_fields()?
+                    } else {
+                        Vec::new()
+                    };
+                    Ok(Pattern::EnumVariant {
+                        enum_name: name,
+                        variant,
+                        fields,
+                    })
+                } else if self.check(&TokenKind::LBrace) {
+                    let fields = self.pattern_fields()?;
+                    Ok(Pattern::Struct { name, fields })
+                } else {
+                    Ok(Pattern::Binding(name))
+                }
+            }
+            _ => Err(self.error("expected pattern")),
+        }
+    }
+
+    fn pattern_fields(&mut self) -> Result<Vec<FieldPattern>, Error> {
+        self.consume(&TokenKind::LBrace, "expected `{`")?;
+        let mut fields = Vec::new();
+        if !self.check(&TokenKind::RBrace) {
+            loop {
+                let field_name = self.consume_ident("expected field name in pattern")?;
+                self.consume(
+                    &TokenKind::Colon,
+                    "expected `:` after field name in pattern",
+                )?;
+                let pattern = self.pattern()?;
+                fields.push(FieldPattern {
+                    name: field_name,
+                    pattern,
+                });
+                if !self.match_token(&TokenKind::Comma) {
+                    break;
+                }
+                if self.check(&TokenKind::RBrace) {
+                    break;
+                }
+            }
+        }
+        self.consume(&TokenKind::RBrace, "expected `}` after pattern fields")?;
+        Ok(fields)
+    }
+
+    fn field_defs(&mut self) -> Result<Vec<FieldDef>, Error> {
+        self.consume(&TokenKind::LBrace, "expected `{`")?;
         let mut fields = Vec::new();
         if !self.check(&TokenKind::RBrace) {
             loop {
@@ -212,12 +387,32 @@ impl Parser {
                 }
             }
         }
+        self.consume(&TokenKind::RBrace, "expected `}` after fields")?;
+        Ok(fields)
+    }
 
-        self.consume(&TokenKind::RBrace, "expected `}` after struct fields")?;
-        Ok(Stmt {
-            kind: StmtKind::Struct { name, fields },
-            line,
-        })
+    fn field_inits(&mut self) -> Result<Vec<FieldInit>, Error> {
+        self.consume(&TokenKind::LBrace, "expected `{`")?;
+        let mut fields = Vec::new();
+        if !self.check(&TokenKind::RBrace) {
+            loop {
+                let field_name = self.consume_ident("expected field name")?;
+                self.consume(&TokenKind::Colon, "expected `:` after field name")?;
+                let value = self.expression_with_struct(true)?;
+                fields.push(FieldInit {
+                    name: field_name,
+                    value,
+                });
+                if !self.match_token(&TokenKind::Comma) {
+                    break;
+                }
+                if self.check(&TokenKind::RBrace) {
+                    break;
+                }
+            }
+        }
+        self.consume(&TokenKind::RBrace, "expected `}` after fields")?;
+        Ok(fields)
     }
 
     // `carasta Name { maita method(immo, ...) { ... } }`
@@ -256,7 +451,7 @@ impl Parser {
 
         let mut params = vec![Param {
             name: first,
-            ty: Type::Struct(struct_name.to_string()),
+            ty: Type::Named(struct_name.to_string()),
         }];
 
         if self.match_token(&TokenKind::Comma) && !self.check(&TokenKind::RParen) {
@@ -299,7 +494,8 @@ impl Parser {
     //
     // The source names are Quenya: `Notessë` (Int), `Quetta` (Str),
     // `Nanwa` (Bool), `Er` (Unit), `Técma<T>` (List), and function types
-    // written as `maita(T, ...) -> R`. Type names are case-insensitive.
+    // written as `maita(T, ...) -> R`. Built-in names are case-insensitive;
+    // user-defined struct and enum names are case-sensitive.
     fn parse_type(&mut self) -> Result<Type, Error> {
         let token = self.peek().clone();
         match token.kind {
@@ -317,9 +513,9 @@ impl Parser {
                         self.consume(&TokenKind::Gt, "expected `>` after list type")?;
                         Ok(Type::List(Box::new(inner)))
                     }
-                    // Any other identifier is a user-defined struct type.
-                    // The type checker validates that the struct exists.
-                    _ => Ok(Type::Struct(name)),
+                    // Any other identifier is a user-defined named type.
+                    // The type checker validates that the type exists.
+                    _ => Ok(Type::Named(name)),
                 }
             }
             TokenKind::Fn => {
@@ -462,9 +658,9 @@ impl Parser {
         self.or()
     }
 
-    // Parse an expression with struct literals enabled or disabled at its
-    // top level. Parentheses, call arguments, and list elements enable them
-    // again, as Rust does.
+    // Parse an expression with struct and enum variant literals enabled or
+    // disabled at its top level. Parentheses, call arguments, and list
+    // elements enable them again, as Rust does.
     fn expression_with_struct(&mut self, allow: bool) -> Result<Expr, Error> {
         let saved = self.allow_struct_literal;
         self.allow_struct_literal = allow;
@@ -673,28 +869,7 @@ impl Parser {
     }
 
     fn struct_literal(&mut self, name: String, line: usize) -> Result<Expr, Error> {
-        self.consume(&TokenKind::LBrace, "expected `{` after struct name")?;
-
-        let mut fields = Vec::new();
-        if !self.check(&TokenKind::RBrace) {
-            loop {
-                let field_name = self.consume_ident("expected field name")?;
-                self.consume(&TokenKind::Colon, "expected `:` after field name")?;
-                let value = self.expression_with_struct(true)?;
-                fields.push(FieldInit {
-                    name: field_name,
-                    value,
-                });
-                if !self.match_token(&TokenKind::Comma) {
-                    break;
-                }
-                if self.check(&TokenKind::RBrace) {
-                    break;
-                }
-            }
-        }
-
-        self.consume(&TokenKind::RBrace, "expected `}` after struct fields")?;
+        let fields = self.field_inits()?;
         Ok(Expr {
             kind: ExprKind::Struct { name, fields },
             line,
@@ -729,7 +904,22 @@ impl Parser {
             }
             TokenKind::Ident(name) => {
                 self.advance();
-                if self.allow_struct_literal && self.check(&TokenKind::LBrace) {
+                if self.match_token(&TokenKind::ColonColon) {
+                    let variant = self.consume_ident("expected variant name after `::`")?;
+                    let fields = if self.allow_struct_literal && self.check(&TokenKind::LBrace) {
+                        self.field_inits()?
+                    } else {
+                        Vec::new()
+                    };
+                    Ok(Expr {
+                        kind: ExprKind::EnumVariant {
+                            enum_name: name,
+                            variant,
+                            fields,
+                        },
+                        line,
+                    })
+                } else if self.allow_struct_literal && self.check(&TokenKind::LBrace) {
                     self.struct_literal(name, line)
                 } else {
                     Ok(Expr {

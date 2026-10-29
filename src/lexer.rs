@@ -31,6 +31,8 @@ pub enum TokenKind {
     Print,
     Struct,
     Impl,
+    Enum,
+    Match,
 
     // Punctuation.
     LParen,
@@ -42,6 +44,7 @@ pub enum TokenKind {
     Comma,
     Semicolon,
     Colon,
+    ColonColon,
     Dot,
 
     // Operators.
@@ -52,6 +55,7 @@ pub enum TokenKind {
     Slash,
     Percent,
     Assign,
+    FatArrow,
     EqEq,
     BangEq,
     Lt,
@@ -97,7 +101,16 @@ pub fn tokenize(source: &str) -> Result<Vec<Token>, Error> {
             ']' => tokens.push(lexer.single(TokenKind::RBracket)),
             ',' => tokens.push(lexer.single(TokenKind::Comma)),
             ';' => tokens.push(lexer.single(TokenKind::Semicolon)),
-            ':' => tokens.push(lexer.single(TokenKind::Colon)),
+            ':' => {
+                let line = lexer.line;
+                lexer.advance();
+                let kind = if lexer.match_char(':') {
+                    TokenKind::ColonColon
+                } else {
+                    TokenKind::Colon
+                };
+                tokens.push(Token { kind, line });
+            }
             '.' => tokens.push(lexer.single(TokenKind::Dot)),
             '+' => tokens.push(lexer.single(TokenKind::Plus)),
             '-' => {
@@ -118,6 +131,8 @@ pub fn tokenize(source: &str) -> Result<Vec<Token>, Error> {
                 lexer.advance();
                 let kind = if lexer.match_char('=') {
                     TokenKind::EqEq
+                } else if lexer.match_char('>') {
+                    TokenKind::FatArrow
                 } else {
                     TokenKind::Assign
                 };
@@ -305,6 +320,8 @@ impl Lexer {
             "quétë" => TokenKind::Print,
             "canta" => TokenKind::Struct,
             "carasta" => TokenKind::Impl,
+            "cilmë" => TokenKind::Enum,
+            "nam" => TokenKind::Match,
             _ => TokenKind::Ident(text),
         };
         Token { kind, line }

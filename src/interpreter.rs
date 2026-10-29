@@ -7,10 +7,10 @@ use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
 
-use crate::ast::{BinaryOp, Expr, ExprKind, Stmt, StmtKind, UnaryOp};
+use crate::ast::{BinaryOp, Expr, ExprKind, Pattern, Stmt, StmtKind, UnaryOp};
 use crate::environment::Environment;
 use crate::error::Error;
-use crate::value::{values_equal, Builtin, Function, StructInstance, Value};
+use crate::value::{values_equal, Builtin, EnumInstance, Function, StructInstance, Value};
 
 // `Flow` carries control flow through nested blocks.
 enum Flow {
@@ -200,8 +200,23 @@ fn execute(
         // The enclosing loop handles these flows.
         StmtKind::Break => Ok(Flow::Break(stmt.line)),
         StmtKind::Continue => Ok(Flow::Continue(stmt.line)),
-        // Struct definitions are checked before execution.
+        // Struct and enum definitions are checked before execution.
         StmtKind::Struct { .. } => Ok(Flow::Normal),
+        StmtKind::Enum { .. } => Ok(Flow::Normal),
+        // A match runs the body of the first arm whose pattern matches.
+        StmtKind::Match { value, arms } => {
+            let value = eval(value, env, out)?;
+            for arm in arms {
+                let arm_env = Environment::new_child(env.clone());
+                if match_pattern(&arm.pattern, &value, &arm_env) {
+                    return execute_block(&arm.body, &arm_env, out);
+                }
+            }
+            Err(Error::new(
+                stmt.line,
+                format!("no match arm matched {value}"),
+            ))
+        }
         // Methods are functions with a mangled name. The first parameter
         // is `immo`, so a method call can pass the receiver as its first
         // argument.
@@ -392,6 +407,21 @@ fn eval(expr: &Expr, env: &Rc<RefCell<Environment>>, out: &mut dyn Write) -> Res
                 fields: values,
             }))))
         }
+        ExprKind::EnumVariant {
+            enum_name,
+            variant,
+            fields,
+        } => {
+            let mut values = Vec::with_capacity(fields.len());
+            for field in fields {
+                values.push((field.name.clone(), eval(&field.value, env, out)?));
+            }
+            Ok(Value::Enum(Rc::new(EnumInstance {
+                type_name: enum_name.clone(),
+                variant: variant.clone(),
+                fields: values,
+            })))
+        }
         ExprKind::Field { target, name } => {
             let target_value = eval(target, env, out)?;
             match target_value {
@@ -459,6 +489,53 @@ fn eval(expr: &Expr, env: &Rc<RefCell<Environment>>, out: &mut dyn Write) -> Res
             }
             call_function(function, values, expr.line, out)
         }
+    }
+}
+
+// Try a pattern against a value. Bindings are defined in `env`.
+fn match_pattern(pattern: &Pattern, value: &Value, env: &Rc<RefCell<Environment>>) -> bool {
+    match pattern {
+        Pattern::Wildcard => true,
+        Pattern::Binding(name) => {
+            env.borrow_mut().define(name.clone(), value.clone());
+            true
+        }
+        Pattern::Int(expected) => matches!(value, Value::Int(actual) if actual == expected),
+        Pattern::Str(expected) => matches!(value, Value::Str(actual) if actual == expected),
+        Pattern::Bool(expected) => matches!(value, Value::Bool(actual) if actual == expected),
+        Pattern::EnumVariant {
+            enum_name,
+            variant,
+            fields,
+        } => match value {
+            Value::Enum(instance) => {
+                if instance.type_name != *enum_name || instance.variant != *variant {
+                    return false;
+                }
+                fields.iter().all(|field| {
+                    instance
+                        .get(&field.name)
+                        .map(|value| match_pattern(&field.pattern, value, env))
+                        .unwrap_or(false)
+                })
+            }
+            _ => false,
+        },
+        Pattern::Struct { name, fields } => match value {
+            Value::Struct(instance) => {
+                let instance = instance.borrow();
+                if instance.type_name != *name {
+                    return false;
+                }
+                fields.iter().all(|field| {
+                    instance
+                        .get(&field.name)
+                        .map(|value| match_pattern(&field.pattern, value, env))
+                        .unwrap_or(false)
+                })
+            }
+            _ => false,
+        },
     }
 }
 

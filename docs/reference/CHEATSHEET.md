@@ -17,6 +17,8 @@
 | `quétë` | print | `println!` |
 | `canta` | struct | `struct` |
 | `carasta` | impl | `impl` |
+| `cilmë` | enum | `enum` |
+| `nam` | match | `match` |
 
 `immo` is the first method parameter. It is not a keyword.
 
@@ -33,7 +35,7 @@ Keywords use one exact spelling. Write the diacritics.
 | `Técma<T>` | `Vec<T>` |
 | `maita(T) -> R` | `fn(T) -> R` |
 
-A struct name is a user-defined type.
+A struct or enum name is a user-defined type.
 
 ## Syntax
 
@@ -55,6 +57,9 @@ A struct name is a user-defined type.
 | field | `elda.quetta` / `elda.quetta = "Anar"` |
 | method | `maita vista(immo, quetta: Quetta) -> Er { ... }` |
 | method call | `elda.vista("Anar")` |
+| enum | `cilmë Color { Red, Green }` |
+| variant | `Color::Red` / `Shape::Circle { radius: 1 }` |
+| match | `nam x { Pattern => { ... } ... }` |
 
 ## Built-in Functions
 
@@ -86,6 +91,22 @@ A struct name is a user-defined type.
 - Struct and impl blocks are top-level only.
 - A field type must be declared before use.
 
+## Enums and Match
+
+- `cilmë Name { Variant, Variant { field: Type } }` declares an enum.
+- Variants are unit or struct-like. Tuple variants are not supported.
+- `Name::Variant` creates a unit variant.
+- `Name::Variant { field: value }` creates a struct-like variant.
+- `nam value { Pattern => { ... } ... }` runs one matching arm.
+- Patterns: `_`, a binding, literals, `Type::Variant`, struct patterns.
+- Pattern fields must be complete; `..` is not supported.
+- The checker requires an exhaustive match.
+- `nam` is a statement, like `qui`.
+- Match arms are blocks. Commas between arms are optional.
+- Enum values compare and print structurally.
+- Enums and structs share one type namespace.
+- An enum field type must be declared before use.
+
 ## Lists
 
 - Type: `Técma<T>`.
@@ -107,7 +128,8 @@ A struct name is a user-defined type.
 - The check runs after the parser and before the interpreter.
 - It checks types, arity, returns, conditions, loops, and `rac`/`lelya`.
 - It checks struct fields and method signatures.
+- It checks enum variants, pattern types, and match exhaustiveness.
 - An empty list gets its type from context: `essë xs = []; napan(xs, 1);`.
 - `essë xs = [];` is an error.
-- `qui` is a statement, not an expression.
+- `qui` and `nam` are statements, not expressions.
 - `notië` and `napan` are free functions, not methods.

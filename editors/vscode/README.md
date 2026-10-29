@@ -38,6 +38,7 @@ quétë(quetta);
 - List literals, indexing, and `ilyë ... mí ...` loops with `rac` and `lelya`.
 - Type annotations for function parameters, return types, and local variables.
 - Struct and method syntax with `canta`, `carasta`, and `immo`.
+- Enum and match syntax with `cilmë`, `nam`, `::`, and `=>`.
 - Comment toggling with `#`.
 - Bracket matching and auto-closing for `{}`, `()`, `[]`, and `""`.
 - Indentation after `{`.

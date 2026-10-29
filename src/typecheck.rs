@@ -4,18 +4,22 @@
 //! Quenya: it walks the AST after parsing and before interpretation.
 //!
 //! The checker infers local variable types and checks function signatures,
-//! calls, operators, lists, conditions, returns, structs, and methods. It is
-//! deliberately small: there are no generics, traits, or ownership yet. The
-//! builtins `notië` and `napan` are special-cased until the language gets traits.
+//! calls, operators, lists, conditions, returns, structs, enums, patterns,
+//! and methods. It is deliberately small: there are no generics, traits, or
+//! ownership yet. The builtins `notië` and `napan` are special-cased until the
+//! language gets traits.
 //!
 //! The variants below use English names for code readability. `Display`
 //! prints the Quenya source names: `Notessë`, `Quetta`, `Nanwa`, `Er`,
-//! `Técma<T>`, and user-defined struct names.
+//! `Técma<T>`, and user-defined struct and enum names.
 
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-use crate::ast::{BinaryOp, Expr, ExprKind, FieldDef, MethodDef, Stmt, StmtKind, Type, UnaryOp};
+use crate::ast::{
+    BinaryOp, EnumVariantDef, Expr, ExprKind, FieldDef, FieldInit, FieldPattern, MatchArm,
+    MethodDef, Pattern, Stmt, StmtKind, Type, UnaryOp,
+};
 use crate::error::Error;
 
 /// A type used during inference. `Var` is a type variable.
@@ -26,7 +30,7 @@ enum InferType {
     Bool,
     Unit,
     List(Box<InferType>),
-    Struct(String),
+    Named(String),
     Function(Vec<InferType>, Box<InferType>),
     Builtin(BuiltinKind),
     Var(usize),
@@ -41,7 +45,7 @@ impl InferType {
             Type::Bool => InferType::Bool,
             Type::Unit => InferType::Unit,
             Type::List(inner) => InferType::List(Box::new(InferType::from_ast(inner))),
-            Type::Struct(name) => InferType::Struct(name.clone()),
+            Type::Named(name) => InferType::Named(name.clone()),
             Type::Function(params, ret) => InferType::Function(
                 params.iter().map(InferType::from_ast).collect(),
                 Box::new(InferType::from_ast(ret)),
@@ -58,7 +62,7 @@ impl fmt::Display for InferType {
             InferType::Bool => write!(f, "Nanwa"),
             InferType::Unit => write!(f, "Er"),
             InferType::List(inner) => write!(f, "Técma<{inner}>"),
-            InferType::Struct(name) => write!(f, "{name}"),
+            InferType::Named(name) => write!(f, "{name}"),
             InferType::Function(params, ret) => {
                 write!(f, "maita(")?;
                 for (index, param) in params.iter().enumerate() {
@@ -104,6 +108,19 @@ struct StructInfo {
     fields: Vec<(String, InferType)>,
 }
 
+/// An enum definition known to the checker.
+#[derive(Debug, Clone)]
+struct EnumInfo {
+    variants: Vec<EnumVariantInfo>,
+}
+
+/// One variant of an enum definition.
+#[derive(Debug, Clone)]
+struct EnumVariantInfo {
+    name: String,
+    fields: Vec<(String, InferType)>,
+}
+
 /// A method signature known to the checker.
 #[derive(Debug, Clone)]
 struct MethodInfo {
@@ -122,6 +139,7 @@ pub struct TypeChecker {
     /// Type variables from empty lists, with the line of the `[`.
     pending: Vec<(usize, usize)>,
     structs: HashMap<String, StructInfo>,
+    enums: HashMap<String, EnumInfo>,
     methods: HashMap<(String, String), MethodInfo>,
 }
 
@@ -138,6 +156,7 @@ impl TypeChecker {
             loop_depth: 0,
             pending: Vec::new(),
             structs: HashMap::new(),
+            enums: HashMap::new(),
             methods: HashMap::new(),
         }
     }
@@ -205,7 +224,7 @@ impl TypeChecker {
             } => {
                 let target_type = self.infer(target)?;
                 let field_type = match self.resolve(&target_type) {
-                    InferType::Struct(struct_name) => self
+                    InferType::Named(struct_name) => self
                         .struct_field(&struct_name, name)
                         .cloned()
                         .ok_or_else(|| {
@@ -296,6 +315,8 @@ impl TypeChecker {
                 }
             }
             StmtKind::Struct { name, fields } => self.check_struct(stmt.line, name, fields),
+            StmtKind::Enum { name, variants } => self.check_enum(stmt.line, name, variants),
+            StmtKind::Match { value, arms } => self.check_match(stmt.line, value, arms),
             StmtKind::Impl { name, methods } => self.check_impl(stmt.line, name, methods),
             StmtKind::Function {
                 name,
@@ -371,20 +392,16 @@ impl TypeChecker {
             return Err(Error::new(line, "`canta` is only allowed at top level"));
         }
 
-        let lower = name.to_lowercase();
-        if matches!(
-            lower.as_str(),
-            "notessë" | "quetta" | "nanwa" | "er" | "técma"
-        ) {
+        if is_reserved_type_name(name) {
             return Err(Error::new(
                 line,
                 format!("struct name `{name}` is reserved"),
             ));
         }
-        if self.structs.contains_key(name) {
+        if self.structs.contains_key(name) || self.enums.contains_key(name) {
             return Err(Error::new(
                 line,
-                format!("struct `{name}` is already defined"),
+                format!("type `{name}` is already defined"),
             ));
         }
 
@@ -411,9 +428,366 @@ impl TypeChecker {
         Ok(())
     }
 
+    fn check_enum(
+        &mut self,
+        line: usize,
+        name: &str,
+        variants: &[EnumVariantDef],
+    ) -> Result<(), Error> {
+        if self.scopes.len() != 1 {
+            return Err(Error::new(line, "`cilmë` is only allowed at top level"));
+        }
+        if is_reserved_type_name(name) {
+            return Err(Error::new(line, format!("enum name `{name}` is reserved")));
+        }
+        if self.structs.contains_key(name) || self.enums.contains_key(name) {
+            return Err(Error::new(
+                line,
+                format!("type `{name}` is already defined"),
+            ));
+        }
+        if variants.is_empty() {
+            return Err(Error::new(line, "enum must have at least one variant"));
+        }
+
+        let mut seen_variants = HashSet::new();
+        let mut variant_infos = Vec::new();
+        for variant in variants {
+            if !seen_variants.insert(&variant.name) {
+                return Err(Error::new(
+                    line,
+                    format!("duplicate variant `{}`", variant.name),
+                ));
+            }
+
+            let mut seen_fields = HashSet::new();
+            let mut field_types = Vec::new();
+            for field in &variant.fields {
+                if !seen_fields.insert(&field.name) {
+                    return Err(Error::new(
+                        line,
+                        format!(
+                            "duplicate field `{}` in variant `{}`",
+                            field.name, variant.name
+                        ),
+                    ));
+                }
+                let ty = InferType::from_ast(&field.ty);
+                self.validate_type(&ty, line)?;
+                field_types.push((field.name.clone(), ty));
+            }
+            variant_infos.push(EnumVariantInfo {
+                name: variant.name.clone(),
+                fields: field_types,
+            });
+        }
+
+        self.enums.insert(
+            name.to_string(),
+            EnumInfo {
+                variants: variant_infos,
+            },
+        );
+        Ok(())
+    }
+
+    fn check_match(&mut self, line: usize, value: &Expr, arms: &[MatchArm]) -> Result<(), Error> {
+        if arms.is_empty() {
+            return Err(Error::new(line, "match must have at least one arm"));
+        }
+
+        let value_type = self.infer(value)?;
+        let value_type = self.resolve(&value_type);
+        if matches!(&value_type, InferType::Var(_)) {
+            return Err(Error::new(
+                value.line,
+                "cannot infer the type of the match value; add a type annotation",
+            ));
+        }
+
+        for arm in arms {
+            self.scopes.push(HashMap::new());
+            let result = self
+                .check_pattern(&arm.pattern, &value_type, arm.line)
+                .and_then(|_| self.check_block(&arm.body));
+            self.scopes.pop();
+            result?;
+        }
+
+        let patterns: Vec<&Pattern> = arms.iter().map(|arm| &arm.pattern).collect();
+        if !self.patterns_exhaustive(&patterns, &value_type) {
+            return Err(Error::new(
+                line,
+                "match is not exhaustive; add a wildcard arm",
+            ));
+        }
+        Ok(())
+    }
+
+    fn check_pattern(
+        &mut self,
+        pattern: &Pattern,
+        expected: &InferType,
+        line: usize,
+    ) -> Result<(), Error> {
+        match pattern {
+            Pattern::Wildcard => Ok(()),
+            Pattern::Binding(name) => {
+                if let Some(scope) = self.scopes.last() {
+                    if scope.contains_key(name) {
+                        return Err(Error::new(
+                            line,
+                            format!("duplicate binding `{name}` in pattern"),
+                        ));
+                    }
+                }
+                self.define(name, expected.clone());
+                Ok(())
+            }
+            Pattern::Int(_) => self.require_pattern_type(expected, &InferType::Int, line),
+            Pattern::Str(_) => self.require_pattern_type(expected, &InferType::Str, line),
+            Pattern::Bool(_) => self.require_pattern_type(expected, &InferType::Bool, line),
+            Pattern::EnumVariant {
+                enum_name,
+                variant,
+                fields,
+            } => {
+                let expected_name = self.pattern_named_type(expected, enum_name, line)?;
+                let info = self.enums.get(&expected_name).cloned().ok_or_else(|| {
+                    Error::new(line, format!("type `{expected_name}` is not an enum"))
+                })?;
+                let variant_info = info
+                    .variants
+                    .iter()
+                    .find(|item| item.name == *variant)
+                    .cloned()
+                    .ok_or_else(|| {
+                        Error::new(
+                            line,
+                            format!("type `{expected_name}` has no variant `{variant}`"),
+                        )
+                    })?;
+
+                if variant_info.fields.is_empty() && !fields.is_empty() {
+                    return Err(Error::new(
+                        line,
+                        format!("variant `{expected_name}::{variant}` has no fields"),
+                    ));
+                }
+
+                self.check_field_patterns(
+                    fields,
+                    &variant_info.fields,
+                    &format!("{expected_name}::{variant}"),
+                    line,
+                )
+            }
+            Pattern::Struct { name, fields } => {
+                let expected_name = self.pattern_named_type(expected, name, line)?;
+                let info = self.structs.get(&expected_name).cloned().ok_or_else(|| {
+                    Error::new(line, format!("type `{expected_name}` is not a struct"))
+                })?;
+                self.check_field_patterns(fields, &info.fields, &expected_name, line)
+            }
+        }
+    }
+
+    fn pattern_named_type(
+        &self,
+        expected: &InferType,
+        pattern_name: &str,
+        line: usize,
+    ) -> Result<String, Error> {
+        match self.resolve(expected) {
+            InferType::Named(name) if name == pattern_name => Ok(name),
+            InferType::Named(name) => Err(Error::new(
+                line,
+                format!("pattern type `{pattern_name}` cannot match `{name}`"),
+            )),
+            other => Err(Error::new(
+                line,
+                format!(
+                    "pattern type `{pattern_name}` cannot match `{}`",
+                    self.type_name(&other)
+                ),
+            )),
+        }
+    }
+
+    fn require_pattern_type(
+        &self,
+        expected: &InferType,
+        pattern_type: &InferType,
+        line: usize,
+    ) -> Result<(), Error> {
+        let expected = self.resolve(expected);
+        if matches!(&expected, InferType::Var(_)) {
+            return Err(Error::new(
+                line,
+                "cannot infer the type of the match value; add a type annotation",
+            ));
+        }
+        if expected == *pattern_type {
+            Ok(())
+        } else {
+            Err(Error::new(
+                line,
+                format!(
+                    "pattern of type `{pattern_type}` cannot match `{}`",
+                    self.type_name(&expected)
+                ),
+            ))
+        }
+    }
+
+    fn check_field_patterns(
+        &mut self,
+        fields: &[FieldPattern],
+        expected_fields: &[(String, InferType)],
+        type_name: &str,
+        line: usize,
+    ) -> Result<(), Error> {
+        let mut seen = HashSet::new();
+        for field in fields {
+            if !seen.insert(field.name.clone()) {
+                return Err(Error::new(
+                    line,
+                    format!("duplicate field `{}` in pattern", field.name),
+                ));
+            }
+            let expected = expected_fields
+                .iter()
+                .find(|(name, _)| name == &field.name)
+                .map(|(_, ty)| ty.clone())
+                .ok_or_else(|| {
+                    Error::new(
+                        line,
+                        format!("type `{type_name}` has no field `{}`", field.name),
+                    )
+                })?;
+            self.check_pattern(&field.pattern, &expected, line)?;
+        }
+
+        for (name, _) in expected_fields {
+            if !seen.contains(name) {
+                return Err(Error::new(
+                    line,
+                    format!("missing field `{name}` in pattern for `{type_name}`"),
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn patterns_exhaustive(&self, patterns: &[&Pattern], ty: &InferType) -> bool {
+        if patterns
+            .iter()
+            .any(|pattern| matches!(*pattern, Pattern::Wildcard | Pattern::Binding(_)))
+        {
+            return true;
+        }
+
+        match self.resolve(ty) {
+            InferType::Bool => {
+                let mut has_true = false;
+                let mut has_false = false;
+                for pattern in patterns.iter().copied() {
+                    if let Pattern::Bool(value) = pattern {
+                        if *value {
+                            has_true = true;
+                        } else {
+                            has_false = true;
+                        }
+                    }
+                }
+                has_true && has_false
+            }
+            InferType::Named(name) => {
+                if let Some(info) = self.enums.get(&name) {
+                    info.variants.iter().all(|variant| {
+                        let matching: Vec<&Pattern> = patterns
+                            .iter()
+                            .copied()
+                            .filter(|pattern| {
+                                matches!(
+                                    pattern,
+                                    Pattern::EnumVariant {
+                                        enum_name,
+                                        variant: pattern_variant,
+                                        ..
+                                    } if enum_name == &name && pattern_variant == &variant.name
+                                )
+                            })
+                            .collect();
+                        if matching.is_empty() {
+                            return false;
+                        }
+                        if variant.fields.is_empty() {
+                            return true;
+                        }
+                        variant.fields.iter().all(|(field_name, field_ty)| {
+                            let subpatterns: Vec<&Pattern> = matching
+                                .iter()
+                                .copied()
+                                .filter_map(|pattern| match pattern {
+                                    Pattern::EnumVariant { fields, .. } => fields
+                                        .iter()
+                                        .find(|field| &field.name == field_name)
+                                        .map(|field| &field.pattern),
+                                    _ => None,
+                                })
+                                .collect();
+                            self.patterns_exhaustive(&subpatterns, field_ty)
+                        })
+                    })
+                } else if let Some(info) = self.structs.get(&name) {
+                    let matching: Vec<&Pattern> = patterns
+                        .iter()
+                        .copied()
+                        .filter(|pattern| {
+                            matches!(
+                                pattern,
+                                Pattern::Struct {
+                                    name: pattern_name,
+                                    ..
+                                } if pattern_name == &name
+                            )
+                        })
+                        .collect();
+                    if matching.is_empty() {
+                        return false;
+                    }
+                    info.fields.iter().all(|(field_name, field_ty)| {
+                        let subpatterns: Vec<&Pattern> = matching
+                            .iter()
+                            .copied()
+                            .filter_map(|pattern| match pattern {
+                                Pattern::Struct { fields, .. } => fields
+                                    .iter()
+                                    .find(|field| &field.name == field_name)
+                                    .map(|field| &field.pattern),
+                                _ => None,
+                            })
+                            .collect();
+                        self.patterns_exhaustive(&subpatterns, field_ty)
+                    })
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
+
     fn check_impl(&mut self, line: usize, name: &str, methods: &[MethodDef]) -> Result<(), Error> {
         if self.scopes.len() != 1 {
             return Err(Error::new(line, "`carasta` is only allowed at top level"));
+        }
+        if self.enums.contains_key(name) {
+            return Err(Error::new(
+                line,
+                format!("`carasta` is only for structs; `{name}` is an enum"),
+            ));
         }
         if !self.structs.contains_key(name) {
             return Err(Error::new(line, format!("unknown type `{name}`")));
@@ -444,7 +818,7 @@ impl TypeChecker {
                     format!("method `{}` must start with `immo`", method.name),
                 ));
             };
-            if self_param.ty != Type::Struct(name.to_string()) {
+            if self_param.ty != Type::Named(name.to_string()) {
                 return Err(Error::new(
                     line,
                     format!("method `{}` must start with `immo`", method.name),
@@ -500,7 +874,9 @@ impl TypeChecker {
 
     fn validate_type(&self, ty: &InferType, line: usize) -> Result<(), Error> {
         match ty {
-            InferType::Struct(name) if !self.structs.contains_key(name) => {
+            InferType::Named(name)
+                if !self.structs.contains_key(name) && !self.enums.contains_key(name) =>
+            {
                 Err(Error::new(line, format!("unknown type `{name}`")))
             }
             InferType::List(inner) => self.validate_type(inner, line),
@@ -595,50 +971,62 @@ impl TypeChecker {
                 Ok(element)
             }
             ExprKind::Struct { name, fields } => {
-                let info = self
-                    .structs
-                    .get(name)
-                    .cloned()
-                    .ok_or_else(|| Error::new(expr.line, format!("unknown type `{name}`")))?;
-
-                let mut seen = HashSet::new();
-                for field in fields {
-                    if !seen.insert(field.name.clone()) {
-                        return Err(Error::new(
-                            field.value.line,
-                            format!("duplicate field `{}`", field.name),
-                        ));
-                    }
-                    let field_type = info
-                        .fields
-                        .iter()
-                        .find(|(field_name, _)| field_name == &field.name)
-                        .map(|(_, ty)| ty.clone())
-                        .ok_or_else(|| {
-                            Error::new(
-                                field.value.line,
-                                format!("type `{name}` has no field `{}`", field.name),
-                            )
-                        })?;
-                    let value_type = self.infer(&field.value)?;
-                    self.unify(&field_type, &value_type, field.value.line)?;
-                }
-
-                for (field_name, _) in &info.fields {
-                    if !seen.contains(field_name) {
-                        return Err(Error::new(
+                let info = self.structs.get(name).cloned().ok_or_else(|| {
+                    if self.enums.contains_key(name) {
+                        Error::new(
                             expr.line,
-                            format!("missing field `{field_name}` in `{name}`"),
-                        ));
+                            format!("type `{name}` is an enum; use `{name}::Variant`"),
+                        )
+                    } else {
+                        Error::new(expr.line, format!("unknown type `{name}`"))
                     }
+                })?;
+                self.check_field_inits(name, &info.fields, fields, expr.line)?;
+                Ok(InferType::Named(name.clone()))
+            }
+            ExprKind::EnumVariant {
+                enum_name,
+                variant,
+                fields,
+            } => {
+                let info = self.enums.get(enum_name).cloned().ok_or_else(|| {
+                    if self.structs.contains_key(enum_name) {
+                        Error::new(expr.line, format!("type `{enum_name}` is not an enum"))
+                    } else {
+                        Error::new(expr.line, format!("unknown type `{enum_name}`"))
+                    }
+                })?;
+                let variant_info = info
+                    .variants
+                    .iter()
+                    .find(|item| item.name == *variant)
+                    .cloned()
+                    .ok_or_else(|| {
+                        Error::new(
+                            expr.line,
+                            format!("type `{enum_name}` has no variant `{variant}`"),
+                        )
+                    })?;
+
+                if variant_info.fields.is_empty() && !fields.is_empty() {
+                    return Err(Error::new(
+                        expr.line,
+                        format!("variant `{enum_name}::{variant}` has no fields"),
+                    ));
                 }
 
-                Ok(InferType::Struct(name.clone()))
+                self.check_field_inits(
+                    &format!("{enum_name}::{variant}"),
+                    &variant_info.fields,
+                    fields,
+                    expr.line,
+                )?;
+                Ok(InferType::Named(enum_name.clone()))
             }
             ExprKind::Field { target, name } => {
                 let target_type = self.infer(target)?;
                 match self.resolve(&target_type) {
-                    InferType::Struct(struct_name) => self
+                    InferType::Named(struct_name) => self
                         .struct_field(&struct_name, name)
                         .cloned()
                         .ok_or_else(|| {
@@ -656,7 +1044,7 @@ impl TypeChecker {
             ExprKind::MethodCall { target, name, args } => {
                 let target_type = self.infer(target)?;
                 let struct_name = match self.resolve(&target_type) {
-                    InferType::Struct(struct_name) => struct_name,
+                    InferType::Named(struct_name) => struct_name,
                     other => {
                         return Err(Error::new(
                             target.line,
@@ -691,6 +1079,46 @@ impl TypeChecker {
                 Ok(method.ret)
             }
         }
+    }
+
+    fn check_field_inits(
+        &mut self,
+        type_name: &str,
+        expected_fields: &[(String, InferType)],
+        fields: &[FieldInit],
+        line: usize,
+    ) -> Result<(), Error> {
+        let mut seen = HashSet::new();
+        for field in fields {
+            if !seen.insert(field.name.clone()) {
+                return Err(Error::new(
+                    field.value.line,
+                    format!("duplicate field `{}`", field.name),
+                ));
+            }
+            let expected = expected_fields
+                .iter()
+                .find(|(name, _)| name == &field.name)
+                .map(|(_, ty)| ty.clone())
+                .ok_or_else(|| {
+                    Error::new(
+                        field.value.line,
+                        format!("type `{type_name}` has no field `{}`", field.name),
+                    )
+                })?;
+            let value_type = self.infer(&field.value)?;
+            self.unify(&expected, &value_type, field.value.line)?;
+        }
+
+        for (name, _) in expected_fields {
+            if !seen.contains(name) {
+                return Err(Error::new(
+                    line,
+                    format!("missing field `{name}` in `{type_name}`"),
+                ));
+            }
+        }
+        Ok(())
     }
 
     fn infer_binary(
@@ -920,7 +1348,7 @@ impl TypeChecker {
             | (InferType::Bool, InferType::Bool)
             | (InferType::Unit, InferType::Unit) => Ok(()),
             (InferType::List(a), InferType::List(b)) => self.unify(a, b, line),
-            (InferType::Struct(a), InferType::Struct(b)) if a == b => Ok(()),
+            (InferType::Named(a), InferType::Named(b)) if a == b => Ok(()),
             (
                 InferType::Function(expected_params, expected_ret),
                 InferType::Function(actual_params, actual_ret),
@@ -1013,6 +1441,13 @@ impl Default for TypeChecker {
     }
 }
 
+fn is_reserved_type_name(name: &str) -> bool {
+    matches!(
+        name.to_lowercase().as_str(),
+        "notessë" | "quetta" | "nanwa" | "er" | "técma"
+    )
+}
+
 // A block definitely returns when one of its statements definitely returns.
 fn block_returns(body: &[Stmt]) -> bool {
     body.iter().any(stmt_returns)
@@ -1028,6 +1463,9 @@ fn stmt_returns(stmt: &Stmt) -> bool {
             else_branch: Some(else_branch),
             ..
         } => block_returns(then_branch) && stmt_returns(else_branch),
+        StmtKind::Match { arms, .. } => {
+            !arms.is_empty() && arms.iter().all(|arm| block_returns(&arm.body))
+        }
         StmtKind::Block(body) => block_returns(body),
         _ => false,
     }

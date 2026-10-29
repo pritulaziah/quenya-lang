@@ -9,8 +9,11 @@
     { "include": "#variable-declaration" },
     { "include": "#struct-declaration" },
     { "include": "#impl-declaration" },
+    { "include": "#enum-declaration" },
     { "include": "#keywords" },
     { "include": "#types" },
+    { "include": "#enum-variant" },
+    { "include": "#wildcard" },
     { "include": "#function-call" },
     { "include": "#identifiers" },
     { "include": "#numbers" },
@@ -64,6 +67,24 @@
         "2": { "name": "entity.name.type.quenya" }
       }
     },
+    "enum-declaration": {
+      "match": "\\b(cilmë)[ \\t]+([\\p{L}_][\\p{L}\\p{N}_]*)",
+      "captures": {
+        "1": { "name": "storage.type.quenya" },
+        "2": { "name": "entity.name.type.quenya" }
+      }
+    },
+    "enum-variant": {
+      "match": "\\b([\\p{L}_][\\p{L}\\p{N}_]*)::([\\p{L}_][\\p{L}\\p{N}_]*)",
+      "captures": {
+        "1": { "name": "entity.name.type.quenya" },
+        "2": { "name": "entity.name.type.enum.quenya" }
+      }
+    },
+    "wildcard": {
+      "match": "(?<![\\p{L}\\p{N}_])_(?![\\p{L}\\p{N}_])",
+      "name": "variable.language.wildcard.quenya"
+    },
     "keywords": {
       "patterns": [
         {
@@ -71,11 +92,11 @@
           "name": "support.function.builtin.quenya"
         },
         {
-          "match": "(?<![\\p{L}\\p{N}_])(essë|maita|canta|carasta)(?![\\p{L}\\p{N}_])",
+          "match": "(?<![\\p{L}\\p{N}_])(essë|maita|canta|carasta|cilmë)(?![\\p{L}\\p{N}_])",
           "name": "storage.type.quenya"
         },
         {
-          "match": "(?<![\\p{L}\\p{N}_])(entul|qui|mal|yallumë|ilyë|mí|rac|lelya)(?![\\p{L}\\p{N}_])",
+          "match": "(?<![\\p{L}\\p{N}_])(entul|qui|mal|yallumë|ilyë|mí|rac|lelya|nam)(?![\\p{L}\\p{N}_])",
           "name": "keyword.control.quenya"
         },
         {
@@ -111,7 +132,7 @@
       "name": "constant.numeric.integer.quenya"
     },
     "operators": {
-      "match": "==|!=|<=|>=|->|[=+*/%<>:.-]",
+      "match": "==|!=|<=|>=|->|=>|::|[=+*/%<>:.-]",
       "name": "keyword.operator.quenya"
     },
     "braces": {

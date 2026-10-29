@@ -732,6 +732,319 @@ fn struct_top_level_only() {
 }
 
 #[test]
+fn enum_unit_variants_and_match() {
+    let source = r#"
+        cilmë Color { Red, Green, Blue }
+        essë c: Color = Color::Green;
+        nam c {
+            Color::Red => { quétë("red"); }
+            Color::Green => { quétë("green"); }
+            Color::Blue => { quétë("blue"); }
+        }
+    "#;
+    assert_eq!(ok(source), "green\n");
+}
+
+#[test]
+fn enum_struct_variants_and_bindings() {
+    let source = r#"
+        cilmë Shape {
+            Circle { radius: Notessë },
+            Rectangle { width: Notessë, height: Notessë },
+        }
+        essë s = Shape::Circle { radius: 3 };
+        nam s {
+            Shape::Circle { radius: r } => { quétë(r); }
+            Shape::Rectangle { width: w, height: h } => { quétë(w * h); }
+        }
+    "#;
+    assert_eq!(ok(source), "3\n");
+}
+
+#[test]
+fn enum_nested_patterns() {
+    let source = r#"
+        cilmë Inner { A, B }
+        cilmë Outer { One { inner: Inner }, Two }
+        essë o = Outer::One { inner: Inner::B };
+        nam o {
+            Outer::One { inner: Inner::A } => { quétë("a"); }
+            Outer::One { inner: Inner::B } => { quétë("b"); }
+            Outer::Two => { quétë("two"); }
+        }
+    "#;
+    assert_eq!(ok(source), "b\n");
+}
+
+#[test]
+fn enum_nested_bool_exhaustiveness() {
+    let source = r#"
+        cilmë Flag { On { value: Nanwa }, Off }
+        essë f = Flag::On { value: naitë };
+        nam f {
+            Flag::On { value: naitë } => { quétë("on"); }
+            Flag::On { value: lá naitë } => { quétë("off"); }
+            Flag::Off => { quétë("off"); }
+        }
+    "#;
+    assert_eq!(ok(source), "on\n");
+}
+
+#[test]
+fn match_literals_and_wildcard() {
+    let source = r#"
+        essë x = 2;
+        nam x {
+            1 => { quétë("one"); }
+            2 => { quétë("two"); }
+            _ => { quétë("other"); }
+        }
+        essë s = "b";
+        nam s {
+            "a" => { quétë("a"); }
+            _ => { quétë("other"); }
+        }
+        essë n = -1;
+        nam n {
+            -1 => { quétë("neg"); }
+            _ => { quétë("other"); }
+        }
+    "#;
+    assert_eq!(ok(source), "two\nother\nneg\n");
+}
+
+#[test]
+fn match_bool_exhaustive() {
+    let source = r#"
+        essë b = naitë;
+        nam b {
+            naitë => { quétë("yes"); }
+            lá naitë => { quétë("no"); }
+        }
+    "#;
+    assert_eq!(ok(source), "yes\n");
+}
+
+#[test]
+fn match_struct_pattern() {
+    let source = r#"
+        canta Point { x: Notessë, y: Notessë }
+        essë p = Point { x: 1, y: 2 };
+        nam p {
+            Point { x: 0, y: y } => { quétë(y); }
+            Point { x: x, y: _ } => { quétë(x); }
+        }
+    "#;
+    assert_eq!(ok(source), "1\n");
+}
+
+#[test]
+fn match_in_function_return() {
+    let source = r#"
+        cilmë Option { None, Some { value: Notessë } }
+        maita unwrap_or(o: Option, fallback: Notessë) -> Notessë {
+            nam o {
+                Option::Some { value: v } => { entul v; }
+                Option::None => { entul fallback; }
+            }
+        }
+        quétë(unwrap_or(Option::Some { value: 5 }, 0));
+        quétë(unwrap_or(Option::None, 9));
+    "#;
+    assert_eq!(ok(source), "5\n9\n");
+}
+
+#[test]
+fn match_loop_control() {
+    let source = r#"
+        essë i = 0;
+        yallumë i < 5 {
+            nam i {
+                2 => { i = i + 1; lelya; }
+                4 => { rac; }
+                _ => { quétë(i); }
+            }
+            i = i + 1;
+        }
+    "#;
+    assert_eq!(ok(source), "0\n1\n3\n");
+}
+
+#[test]
+fn enum_display_and_equality() {
+    let source = r#"
+        cilmë Color { Red, Green }
+        quétë(Color::Red);
+        quétë(Color::Red == Color::Red);
+        quétë(Color::Red == Color::Green);
+        cilmë Shape { Circle { radius: Notessë } }
+        quétë(Shape::Circle { radius: 2 });
+        quétë(Shape::Circle { radius: 2 } == Shape::Circle { radius: 2 });
+    "#;
+    assert_eq!(
+        ok(source),
+        "Color::Red\nnaitë\nlá naitë\nShape::Circle { radius: 2 }\nnaitë\n"
+    );
+}
+
+#[test]
+fn match_binding_pattern() {
+    let source = r#"
+        essë x = 5;
+        nam x {
+            1 => { quétë(1); }
+            n => { quétë(n); }
+        }
+    "#;
+    assert_eq!(ok(source), "5\n");
+}
+
+#[test]
+fn match_parenthesized_variant_value() {
+    let source = r#"
+        cilmë Shape { Circle { radius: Notessë } }
+        nam (Shape::Circle { radius: 2 }) {
+            Shape::Circle { radius: r } => { quétë(r); }
+        }
+    "#;
+    assert_eq!(ok(source), "2\n");
+}
+
+#[test]
+fn enum_values_in_lists() {
+    let source = r#"
+        cilmë Option { None, Some { value: Notessë } }
+        maita get(o: Option) -> Notessë {
+            nam o {
+                Option::Some { value: v } => { entul v; }
+                Option::None => { entul 0; }
+            }
+        }
+        essë xs = [Option::Some { value: 1 }, Option::None];
+        ilyë o mí xs {
+            quétë(get(o));
+        }
+    "#;
+    assert_eq!(ok(source), "1\n0\n");
+}
+
+#[test]
+fn enum_declaration_errors() {
+    let error = run("essë c = Missing::Red;").unwrap_err();
+    assert!(error.contains("unknown type `Missing`"), "{error}");
+    let error = run("cilmë Color { Red } essë c = Color::Blue;").unwrap_err();
+    assert!(error.contains("has no variant `Blue`"), "{error}");
+    let error = run("canta Point { x: Notessë } cilmë Point { A }").unwrap_err();
+    assert!(error.contains("type `Point` is already defined"), "{error}");
+    let error = run("cilmë Point { A } canta Point { x: Notessë }").unwrap_err();
+    assert!(error.contains("type `Point` is already defined"), "{error}");
+    let error = run("cilmë Color { Red, Red }").unwrap_err();
+    assert!(error.contains("duplicate variant `Red`"), "{error}");
+    let error = run("cilmë Shape { Circle { r: Notessë, r: Notessë } }").unwrap_err();
+    assert!(
+        error.contains("duplicate field `r` in variant `Circle`"),
+        "{error}"
+    );
+    let error = run("cilmë Empty { }").unwrap_err();
+    assert!(error.contains("at least one variant"), "{error}");
+    let error = run("cilmë Notessë { A }").unwrap_err();
+    assert!(error.contains("is reserved"), "{error}");
+    let error = run("{ cilmë Color { A } }").unwrap_err();
+    assert!(error.contains("only allowed at top level"), "{error}");
+    let error = run("cilmë Color { A } carasta Color { maita f(immo) -> Er { } }").unwrap_err();
+    assert!(error.contains("only for structs"), "{error}");
+}
+
+#[test]
+fn enum_variant_errors() {
+    let error = run("cilmë Color { Red } essë c = Color { };").unwrap_err();
+    assert!(error.contains("is an enum"), "{error}");
+    let error = run("canta Point { x: Notessë } essë p = Point::Red;").unwrap_err();
+    assert!(error.contains("is not an enum"), "{error}");
+    let error = run("cilmë Color { Red } essë c = Color::Red { x: 1 };").unwrap_err();
+    assert!(error.contains("has no fields"), "{error}");
+    let error =
+        run("cilmë Shape { Circle { r: Notessë } } essë s = Shape::Circle {};").unwrap_err();
+    assert!(error.contains("missing field `r`"), "{error}");
+    let error =
+        run("cilmë Shape { Circle { r: Notessë } } essë s = Shape::Circle { x: 1 };").unwrap_err();
+    assert!(error.contains("has no field `x`"), "{error}");
+    let error = run(r#"cilmë Shape { Circle { r: Notessë } } essë s = Shape::Circle { r: "a" };"#)
+        .unwrap_err();
+    assert!(
+        error.contains("expected `Notessë`, found `Quetta`"),
+        "{error}"
+    );
+}
+
+#[test]
+fn match_exhaustiveness_errors() {
+    let error = run("cilmë Color { Red, Green } essë c = Color::Red; nam c { Color::Red => { } }")
+        .unwrap_err();
+    assert!(error.contains("match is not exhaustive"), "{error}");
+
+    let error = run("nam 1 { 1 => { } }").unwrap_err();
+    assert!(error.contains("match is not exhaustive"), "{error}");
+
+    let error = run("nam naitë { naitë => { } }").unwrap_err();
+    assert!(error.contains("match is not exhaustive"), "{error}");
+
+    let error = run(
+        "cilmë Option { None, Some { value: Notessë } } essë o = Option::Some { value: 1 }; nam o { Option::None => { } Option::Some { value: 1 } => { } }",
+    )
+    .unwrap_err();
+    assert!(error.contains("match is not exhaustive"), "{error}");
+
+    let error = run("nam 1 { }").unwrap_err();
+    assert!(error.contains("at least one arm"), "{error}");
+}
+
+#[test]
+fn pattern_errors() {
+    let error = run(r#"essë x = 1; nam x { "a" => { } _ => { } }"#).unwrap_err();
+    assert!(error.contains("cannot match"), "{error}");
+
+    let error = run(
+        "canta Point { x: Notessë, y: Notessë } essë p = Point { x: 1, y: 2 }; nam p { Point { x: a, y: a } => { } }",
+    )
+    .unwrap_err();
+    assert!(error.contains("duplicate binding `a`"), "{error}");
+
+    let error =
+        run("canta Point { x: Notessë } essë p = Point { x: 1 }; nam p { Point { y: _ } => { } }")
+            .unwrap_err();
+    assert!(error.contains("has no field `y`"), "{error}");
+
+    let error = run(
+        "canta Point { x: Notessë, y: Notessë } essë p = Point { x: 1, y: 2 }; nam p { Point { x: _ } => { } }",
+    )
+    .unwrap_err();
+    assert!(error.contains("missing field `y`"), "{error}");
+
+    let error =
+        run("cilmë Color { Red } essë c = Color::Red; nam c { Color::Red { x: _ } => { } }")
+            .unwrap_err();
+    assert!(error.contains("has no fields"), "{error}");
+
+    let error =
+        run("cilmë Color { Red } essë c = Color::Red; nam c { Color::Blue => { } }").unwrap_err();
+    assert!(error.contains("has no variant `Blue`"), "{error}");
+
+    let error =
+        run("cilmë A { X } cilmë B { Y } essë a = A::X; nam a { B::Y => { } }").unwrap_err();
+    assert!(
+        error.contains("pattern type `B` cannot match `A`"),
+        "{error}"
+    );
+
+    let error = run(
+        r#"cilmë Option { Some { value: Notessë } } essë o = Option::Some { value: 1 }; nam o { Option::Some { value: "a" } => { } }"#,
+    )
+    .unwrap_err();
+    assert!(error.contains("cannot match"), "{error}");
+}
+
+#[test]
 fn top_level_return() {
     let error = run("entul 1;").unwrap_err();
     assert!(error.contains("outside function"), "{error}");

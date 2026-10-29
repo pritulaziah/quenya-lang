@@ -41,9 +41,10 @@ pub enum BinaryOp {
 ///
 /// The Rust variant names are English for code readability. The user-facing
 /// names are Quenya: `Notessë`, `Quetta`, `Nanwa`, `Er`, and `Técma<T>`.
-/// Rust checks types before a program runs. This language does the same in a
-/// separate pass. The types are deliberately small: there are no generics,
-/// traits, or lifetimes yet.
+/// User-defined struct and enum names are also types. Rust checks types
+/// before a program runs. This language does the same in a separate pass.
+/// The types are deliberately small: there are no generics, traits, or
+/// lifetimes yet.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
     /// Integer, written `Notessë` in source.
@@ -56,8 +57,8 @@ pub enum Type {
     Unit,
     /// List, written `Técma<T>` in source.
     List(Box<Type>),
-    /// A user-defined struct type, for example `Point`.
-    Struct(String),
+    /// A user-defined named type: a struct or an enum, for example `Point`.
+    Named(String),
     /// A function type, for example `maita(Notessë, Quetta) -> Nanwa`.
     Function(Vec<Type>, Box<Type>),
 }
@@ -70,7 +71,7 @@ impl fmt::Display for Type {
             Type::Bool => write!(f, "Nanwa"),
             Type::Unit => write!(f, "Er"),
             Type::List(inner) => write!(f, "Técma<{inner}>"),
-            Type::Struct(name) => write!(f, "{name}"),
+            Type::Named(name) => write!(f, "{name}"),
             Type::Function(params, ret) => {
                 write!(f, "maita(")?;
                 for (index, param) in params.iter().enumerate() {
@@ -115,6 +116,54 @@ pub struct MethodDef {
     pub body: Vec<Stmt>,
 }
 
+/// A variant in an enum declaration.
+#[derive(Debug, Clone)]
+pub struct EnumVariantDef {
+    pub name: String,
+    pub fields: Vec<FieldDef>,
+}
+
+/// A field pattern, for example `x: value` in a struct or enum pattern.
+#[derive(Debug, Clone)]
+pub struct FieldPattern {
+    pub name: String,
+    pub pattern: Pattern,
+}
+
+/// A pattern used by a `nam` arm.
+#[derive(Debug, Clone)]
+pub enum Pattern {
+    /// `_`
+    Wildcard,
+    /// A name that binds the matched value.
+    Binding(String),
+    /// An integer literal pattern.
+    Int(i64),
+    /// A string literal pattern.
+    Str(String),
+    /// A boolean literal pattern.
+    Bool(bool),
+    /// An enum variant pattern, for example `Color::Red`.
+    EnumVariant {
+        enum_name: String,
+        variant: String,
+        fields: Vec<FieldPattern>,
+    },
+    /// A struct pattern, for example `Point { x: _, y: y }`.
+    Struct {
+        name: String,
+        fields: Vec<FieldPattern>,
+    },
+}
+
+/// One arm of a `nam` statement.
+#[derive(Debug, Clone)]
+pub struct MatchArm {
+    pub pattern: Pattern,
+    pub body: Vec<Stmt>,
+    pub line: usize,
+}
+
 /// An expression with its source line.
 #[derive(Debug, Clone)]
 pub struct Expr {
@@ -146,6 +195,12 @@ pub enum ExprKind {
     /// A struct literal, for example `Point { x: 1, y: 2 }`.
     Struct {
         name: String,
+        fields: Vec<FieldInit>,
+    },
+    /// An enum variant literal, for example `Color::Red`.
+    EnumVariant {
+        enum_name: String,
+        variant: String,
         fields: Vec<FieldInit>,
     },
     /// A field lookup, for example `point.x`.
@@ -214,6 +269,13 @@ pub enum StmtKind {
     Continue,
     /// `canta Name { field: Type, ... }`
     Struct { name: String, fields: Vec<FieldDef> },
+    /// `cilmë Name { Variant, Variant { field: Type } }`
+    Enum {
+        name: String,
+        variants: Vec<EnumVariantDef>,
+    },
+    /// `nam value { Pattern => { ... } ... }`
+    Match { value: Expr, arms: Vec<MatchArm> },
     /// `carasta Name { maita method(immo, ...) { ... } }`
     Impl {
         name: String,

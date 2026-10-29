@@ -1,7 +1,7 @@
 //! Runtime values.
 //!
 //! Values are dynamically typed: a variable can hold an integer, a string,
-//! a boolean, a function, a builtin, a list, a struct, or unit.
+//! a boolean, a function, a builtin, a list, a struct, an enum, or unit.
 
 use std::cell::RefCell;
 use std::fmt;
@@ -65,6 +65,8 @@ pub enum Value {
     List(Rc<RefCell<Vec<Value>>>),
     /// A mutable struct. Fields keep their source order for display.
     Struct(Rc<RefCell<StructInstance>>),
+    /// An immutable enum value with a variant name.
+    Enum(Rc<EnumInstance>),
     Unit,
 }
 
@@ -111,6 +113,23 @@ impl StructInstance {
         } else {
             false
         }
+    }
+}
+
+/// An enum value: one variant of a named enum.
+pub struct EnumInstance {
+    pub type_name: String,
+    pub variant: String,
+    pub fields: Vec<(String, Value)>,
+}
+
+impl EnumInstance {
+    /// Read a variant field by name.
+    pub fn get(&self, name: &str) -> Option<&Value> {
+        self.fields
+            .iter()
+            .find(|(field, _)| field == name)
+            .map(|(_, value)| value)
     }
 }
 
@@ -192,12 +211,30 @@ fn fmt_value(
             seen.pop();
             Ok(())
         }
+        Value::Enum(instance) => {
+            write!(f, "{}::{}", instance.type_name, instance.variant)?;
+            if !instance.fields.is_empty() {
+                write!(f, " {{")?;
+                for (index, (name, value)) in instance.fields.iter().enumerate() {
+                    if index == 0 {
+                        write!(f, " ")?;
+                    } else {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{name}: ")?;
+                    fmt_value(value, f, true, seen)?;
+                }
+                write!(f, " }}")?;
+            }
+            Ok(())
+        }
         Value::Unit => write!(f, "()"),
     }
 }
 
 /// Compare two values. Functions compare by identity, not by structure.
 /// Lists and structs compare by structure, with a guard for cycles.
+/// Enums compare by type, variant, and fields.
 pub fn values_equal(left: &Value, right: &Value) -> bool {
     let mut seen_lists = Vec::new();
     let mut seen_structs = Vec::new();
@@ -261,6 +298,23 @@ fn values_equal_inner(
                 });
             seen_structs.pop();
             equal
+        }
+        (Value::Enum(a), Value::Enum(b)) => {
+            if Rc::ptr_eq(a, b) {
+                return true;
+            }
+            a.type_name == b.type_name
+                && a.variant == b.variant
+                && a.fields.len() == b.fields.len()
+                && a.fields.iter().all(|(name, value)| {
+                    b.fields
+                        .iter()
+                        .find(|(other, _)| other == name)
+                        .map(|(_, other)| {
+                            values_equal_inner(value, other, seen_lists, seen_structs)
+                        })
+                        .unwrap_or(false)
+                })
         }
         _ => false,
     }
