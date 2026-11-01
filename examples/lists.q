@@ -1,5 +1,5 @@
 # Lists, indexing, and iteration.
-essë tengwar = [1, 2, 3];
+essë vistë tengwar = [1, 2, 3];
 
 # Add an element and change the first one.
 napan(tengwar, 4);

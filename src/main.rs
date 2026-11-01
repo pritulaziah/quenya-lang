@@ -38,10 +38,10 @@ fn main() {
 fn run_file(path: &str) -> Result<(), Error> {
     let source = fs::read_to_string(path)
         .map_err(|error| Error::new(0, format!("cannot read `{path}`: {error}")))?;
+    let program = quenya_lang::compile(&source)?;
     let env = Environment::new();
-    let mut checker = TypeChecker::new();
     let mut stdout = io::stdout();
-    run_source(&source, &env, &mut checker, &mut stdout)
+    interpreter::run(&program, &env, &mut stdout)
 }
 
 // The full pipeline: lex, parse, type-check, run.

@@ -792,6 +792,10 @@ fn call_builtin(builtin: Builtin, args: Vec<Value>, line: usize) -> Result<Value
                 )),
             }
         }
+        Builtin::Clone => {
+            let value = args.into_iter().next().expect("arity checked");
+            Ok(value.deep_clone())
+        }
     }
 }
 

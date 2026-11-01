@@ -9,7 +9,7 @@ maita nótië(n: Notessë) -> Notessë {
 }
 
 # Print the first ten numbers.
-essë quen = 0;
+essë vistë quen = 0;
 yallumë quen < 10 {
     quétë(nótië(quen));
     quen = quen + 1;

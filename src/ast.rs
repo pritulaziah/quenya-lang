@@ -89,6 +89,8 @@ impl fmt::Display for Type {
 /// A function parameter with its type.
 #[derive(Debug, Clone)]
 pub struct Param {
+    /// `vistë` allows assignment to the parameter inside the function.
+    pub mutable: bool,
     pub name: String,
     pub ty: Type,
 }
@@ -233,10 +235,11 @@ pub struct Stmt {
 /// The shape of a statement.
 #[derive(Debug, Clone)]
 pub enum StmtKind {
-    /// `essë name: Type = value;` or `essë name = value;`
+    /// `essë name: Type = value;` or `essë vistë name = value;`
     ///
     /// The type annotation is optional. Local types are inferred.
     Let {
+        mutable: bool,
         name: String,
         ty: Option<Type>,
         value: Expr,

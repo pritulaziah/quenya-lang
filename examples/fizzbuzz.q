@@ -1,5 +1,5 @@
 # FizzBuzz from 1 to 15.
-essë nótië = 1;
+essë vistë nótië = 1;
 yallumë nótië <= 15 {
     qui nótië % 15 == 0 {
         quétë("FizzBuzz");

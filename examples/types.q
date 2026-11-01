@@ -10,7 +10,7 @@ essë quanta = anta(nótië, 2);
 quétë(quanta);
 
 # Empty lists need context or an annotation.
-essë essi: Técma<Quetta> = [];
+essë vistë essi: Técma<Quetta> = [];
 napan(essi, "Elen");
 napan(essi, "Anar");
 quétë(essi);

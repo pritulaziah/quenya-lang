@@ -5,6 +5,7 @@
 | Word | Meaning | Rust |
 | --- | --- | --- |
 | `essë` | variable | `let` |
+| `vistë` | mutable binding | `mut` |
 | `maita` | function | `fn` |
 | `entul` | return | `return` |
 | `qui` / `mal` | if / else | `if` / `else` |
@@ -42,6 +43,8 @@ A struct or enum name is a user-defined type.
 | Item | Form |
 | --- | --- |
 | variable | `essë x = 1;` / `essë x: Notessë = 1;` |
+| mutable variable | `essë vistë x = 1;` |
+| mutable parameter | `maita f(vistë x: Notessë) { ... }` |
 | assignment | `x = 2;` / `xs[0] = 3;` |
 | print | `quétë(x);` |
 | if | `qui x { ... } mal { ... }` |
@@ -67,13 +70,15 @@ A struct or enum name is a user-defined type.
 | Function | Effect |
 | --- | --- |
 | `notië(x)` | length of `Técma<T>` or `Quetta` |
-| `napan(xs, x)` | add an item, return `Er` |
+| `napan(xs, x)` | add an item to a mutable list, return `Er` |
+| `clone(x)` | deep copy of `x` |
 | `quétë(x)` | print, this is a statement |
 
 ## Functions
 
 - Parameter types are required.
 - The return type is optional. The default is `Er`.
+- A parameter is immutable unless it is declared with `vistë`.
 - Local types are inferred.
 - A function with a non-`Er` return type must return a value on all paths.
 - Closures capture the environment.
@@ -97,7 +102,8 @@ A struct or enum name is a user-defined type.
 - `value.field = x` writes a field.
 - `carasta Name { ... }` declares methods.
 - The first method parameter is `immo` (self).
-- `value.method(args)` calls a method.
+- `immo` is mutable in this version. Reference receivers come later.
+- `value.method(args)` calls a method. The call borrows the receiver.
 - Struct and impl blocks are top-level only.
 - A field type must be declared before use.
 
@@ -123,18 +129,37 @@ A struct or enum name is a user-defined type.
 ## Lists
 
 - Type: `Técma<T>`.
-- `notië(xs)` returns the length.
-- `napan(xs, x)` adds an item.
-- `xs + ys` creates a new list.
-- `ilyë x mí xs { ... }` iterates over a snapshot.
+- `notië(xs)` returns the length. The call borrows the list.
+- `napan(xs, x)` adds an item. The list must be mutable.
+- `xs + ys` creates a new list and moves both operands.
+- `ilyë x mí xs { ... }` moves the list and iterates over it.
 - `xs[i]` reads an item. `xs[i] = x` writes an item.
+- A non-Copy item cannot move out of `xs[i]`. Use `clone(xs[i])`.
 - `[]` needs a type annotation or context.
 
 ## Operators
 
 - `+` works for `Notessë`, `Quetta`, and `Técma<T>`.
-- `==` and `!=` need the same type.
+- `+` moves non-Copy operands.
+- `==` and `!=` need the same type. They borrow both operands.
 - `<`, `<=`, `>`, `>=` work only for `Notessë`.
+
+## Ownership
+
+- `essë` creates an immutable binding. `essë vistë` creates a mutable binding.
+- Copy types: `Notessë`, `Nanwa`, `Er`, and enums whose fields are all
+  Copy. Functions are Copy.
+- `Quetta`, `Técma<T>`, structs, and other enums are moved.
+- Use `clone(x)` to copy a non-Copy value.
+- A moved value cannot be used. Reassignment reinitializes it.
+- A field move is partial. Other fields remain usable.
+- Using the whole struct after a partial move is an error.
+- `quétë`, `notië`, and `clone` borrow their argument.
+- `napan` needs a mutable list. It moves the item into the list.
+- `nam` moves its value. Each arm starts from the same move state.
+- A closure captures outer names by reference. Capture borrows are not
+  checked yet.
+- The `ilyë` loop variable is immutable.
 
 ## Type Checking
 
@@ -143,7 +168,8 @@ A struct or enum name is a user-defined type.
 - It checks struct fields and method signatures.
 - It checks enum variants, pattern types, and match exhaustiveness.
 - It checks block expression tail types and match expression arm types.
-- An empty list gets its type from context: `essë xs = []; napan(xs, 1);`.
+- It checks mutability, moves, and partial moves.
+- An empty list gets its type from context: `essë vistë xs = []; napan(xs, 1);`.
 - `essë xs = [];` is an error.
 - `qui` is a statement, not an expression.
 - `notië` and `napan` are free functions, not methods.

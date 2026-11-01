@@ -27,6 +27,8 @@ impl Environment {
             .define("notië".to_string(), Value::Builtin(Builtin::Len));
         env.borrow_mut()
             .define("napan".to_string(), Value::Builtin(Builtin::Push));
+        env.borrow_mut()
+            .define("clone".to_string(), Value::Builtin(Builtin::Clone));
         env
     }
 

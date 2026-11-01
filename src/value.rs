@@ -33,6 +33,8 @@ pub enum Builtin {
     Len,
     /// `napan(list, value)` appends a value to a list.
     Push,
+    /// `clone(value)` returns a deep copy of a value.
+    Clone,
 }
 
 impl Builtin {
@@ -41,6 +43,7 @@ impl Builtin {
         match self {
             Builtin::Len => "notië",
             Builtin::Push => "napan",
+            Builtin::Clone => "clone",
         }
     }
 
@@ -49,6 +52,7 @@ impl Builtin {
         match self {
             Builtin::Len => 1,
             Builtin::Push => 2,
+            Builtin::Clone => 1,
         }
     }
 }
@@ -61,13 +65,54 @@ pub enum Value {
     Bool(bool),
     Function(Rc<Function>),
     Builtin(Builtin),
-    /// A mutable list. `Rc<RefCell<...>>` gives reference semantics.
+    /// A mutable list. The checker models Rust moves, but the runtime shares
+    /// the list through `Rc<RefCell<...>>`.
     List(Rc<RefCell<Vec<Value>>>),
     /// A mutable struct. Fields keep their source order for display.
     Struct(Rc<RefCell<StructInstance>>),
     /// An immutable enum value with a variant name.
     Enum(Rc<EnumInstance>),
     Unit,
+}
+
+impl Value {
+    /// Return a deep copy of the value. Functions are shared because this
+    /// language treats them as Copy values.
+    pub fn deep_clone(&self) -> Value {
+        match self {
+            Value::Int(value) => Value::Int(*value),
+            Value::Str(value) => Value::Str(value.clone()),
+            Value::Bool(value) => Value::Bool(*value),
+            Value::Function(function) => Value::Function(Rc::clone(function)),
+            Value::Builtin(builtin) => Value::Builtin(*builtin),
+            Value::List(list) => {
+                let items = list.borrow().iter().map(Value::deep_clone).collect();
+                Value::List(Rc::new(RefCell::new(items)))
+            }
+            Value::Struct(instance) => {
+                let instance = instance.borrow();
+                let fields = instance
+                    .fields
+                    .iter()
+                    .map(|(name, value)| (name.clone(), value.deep_clone()))
+                    .collect();
+                Value::Struct(Rc::new(RefCell::new(StructInstance {
+                    type_name: instance.type_name.clone(),
+                    fields,
+                })))
+            }
+            Value::Enum(instance) => Value::Enum(Rc::new(EnumInstance {
+                type_name: instance.type_name.clone(),
+                variant: instance.variant.clone(),
+                fields: instance
+                    .fields
+                    .iter()
+                    .map(|(name, value)| (name.clone(), value.deep_clone()))
+                    .collect(),
+            })),
+            Value::Unit => Value::Unit,
+        }
+    }
 }
 
 /// A user-defined function.

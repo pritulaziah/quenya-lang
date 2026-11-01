@@ -133,6 +133,7 @@ impl Parser {
     }
 
     fn let_statement(&mut self, line: usize) -> Result<Stmt, Error> {
+        let mutable = self.match_token(&TokenKind::Viste);
         let name = self.consume_ident("expected variable name after `essë`")?;
         // Rust infers local types, but a type annotation is allowed.
         let ty = if self.match_token(&TokenKind::Colon) {
@@ -147,7 +148,12 @@ impl Parser {
             "expected `;` after variable declaration",
         )?;
         Ok(Stmt {
-            kind: StmtKind::Let { name, ty, value },
+            kind: StmtKind::Let {
+                mutable,
+                name,
+                ty,
+                value,
+            },
             line,
         })
     }
@@ -160,6 +166,7 @@ impl Parser {
         if !self.check(&TokenKind::RParen) {
             loop {
                 // Rust requires a type for every function parameter.
+                let mutable = self.match_token(&TokenKind::Viste);
                 let param_name = self.consume_ident("expected parameter name")?;
                 self.consume(
                     &TokenKind::Colon,
@@ -167,6 +174,7 @@ impl Parser {
                 )?;
                 let ty = self.parse_type()?;
                 params.push(Param {
+                    mutable,
                     name: param_name,
                     ty,
                 });
@@ -466,12 +474,14 @@ impl Parser {
         }
 
         let mut params = vec![Param {
+            mutable: false,
             name: first,
             ty: Type::Named(struct_name.to_string()),
         }];
 
         if self.match_token(&TokenKind::Comma) && !self.check(&TokenKind::RParen) {
             loop {
+                let mutable = self.match_token(&TokenKind::Viste);
                 let param_name = self.consume_ident("expected parameter name")?;
                 self.consume(
                     &TokenKind::Colon,
@@ -479,6 +489,7 @@ impl Parser {
                 )?;
                 let ty = self.parse_type()?;
                 params.push(Param {
+                    mutable,
                     name: param_name,
                     ty,
                 });

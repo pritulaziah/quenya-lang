@@ -14,7 +14,7 @@ carasta Elda {
     }
 }
 
-essë elda = Elda { quetta: "Elen", nótië: 1 };
+essë vistë elda = Elda { quetta: "Elen", nótië: 1 };
 elda.vista("Anar");
 quétë(elda);
 quétë(elda.notië());

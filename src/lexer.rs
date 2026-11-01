@@ -15,6 +15,7 @@ pub enum TokenKind {
 
     // Keywords.
     Let,
+    Viste,
     Fn,
     Return,
     If,
@@ -304,6 +305,7 @@ impl Lexer {
         // Keywords use their ornate Quenya spelling. There are no aliases.
         let kind = match text.as_str() {
             "essë" => TokenKind::Let,
+            "vistë" => TokenKind::Viste,
             "maita" => TokenKind::Fn,
             "entul" => TokenKind::Return,
             "qui" => TokenKind::If,

@@ -7,18 +7,11 @@ use std::rc::Rc;
 
 use quenya_lang::environment::Environment;
 use quenya_lang::interpreter;
-use quenya_lang::lexer;
-use quenya_lang::parser;
-use quenya_lang::typecheck::TypeChecker;
 
-// Run a program and capture its output. Types are checked before execution.
+// Run a program and capture its output. Types and ownership are checked
+// before execution.
 fn run(source: &str) -> Result<String, String> {
-    let tokens = lexer::tokenize(source).map_err(|error| error.to_string())?;
-    let program = parser::parse(tokens).map_err(|error| error.to_string())?;
-    let mut checker = TypeChecker::new();
-    checker
-        .check_program(&program)
-        .map_err(|error| error.to_string())?;
+    let program = quenya_lang::compile(source).map_err(|error| error.to_string())?;
     let env: Rc<RefCell<Environment>> = Environment::new();
     let mut output = Vec::new();
     interpreter::run(&program, &env, &mut output).map_err(|error| error.to_string())?;
@@ -40,7 +33,7 @@ fn arithmetic() {
 
 #[test]
 fn variables_and_assignment() {
-    assert_eq!(ok("essë x = 5; x = x + 2; quétë(x);"), "7\n");
+    assert_eq!(ok("essë vistë x = 5; x = x + 2; quétë(x);"), "7\n");
 }
 
 #[test]
@@ -72,7 +65,7 @@ fn if_else() {
 #[test]
 fn while_loop() {
     assert_eq!(
-        ok("essë i = 0; yallumë i < 3 { quétë(i); i = i + 1; }"),
+        ok("essë vistë i = 0; yallumë i < 3 { quétë(i); i = i + 1; }"),
         "0\n1\n2\n"
     );
 }
@@ -84,7 +77,7 @@ fn lists() {
         "1\n3\n"
     );
     assert_eq!(
-        ok("essë xs = [1, 2, 3]; xs[1] = 20; quétë(xs);"),
+        ok("essë vistë xs = [1, 2, 3]; xs[1] = 20; quétë(xs);"),
         "[1, 20, 3]\n"
     );
     assert_eq!(ok("quétë([1, 2] + [3]);"), "[1, 2, 3]\n");
@@ -98,7 +91,7 @@ fn lists() {
 #[test]
 fn list_builtins() {
     assert_eq!(
-        ok("essë xs = [1, 2]; quétë(notië(xs)); napan(xs, 3); quétë(xs); quétë(notië(xs));"),
+        ok("essë vistë xs = [1, 2]; quétë(notië(xs)); napan(xs, 3); quétë(xs); quétë(notië(xs));"),
         "2\n[1, 2, 3]\n3\n"
     );
     assert_eq!(ok(r#"quétë(notië("hello"));"#), "5\n");
@@ -107,7 +100,7 @@ fn list_builtins() {
 #[test]
 fn nested_lists() {
     assert_eq!(
-        ok("essë xs = [[1, 2], [3]]; quétë(xs[0][1]); xs[0][0] = 9; quétë(xs);"),
+        ok("essë vistë xs = [[1, 2], [3]]; quétë(xs[0][1]); xs[0][0] = 9; quétë(xs);"),
         "2\n[[9, 2], [3]]\n"
     );
 }
@@ -144,7 +137,7 @@ fn loop_control() {
         "1\n3\n"
     );
     assert_eq!(
-        ok("essë i = 0; yallumë i < 5 { i = i + 1; qui i == 2 { lelya; } qui i == 4 { rac; } quétë(i); }"),
+        ok("essë vistë i = 0; yallumë i < 5 { i = i + 1; qui i == 2 { lelya; } qui i == 4 { rac; } quétë(i); }"),
         "1\n3\n"
     );
 }
@@ -165,7 +158,7 @@ fn list_index_errors() {
     assert!(error.contains("out of bounds"), "{error}");
     let error = run("essë xs = [1]; quétë(xs[-1]);").unwrap_err();
     assert!(error.contains("out of range"), "{error}");
-    let error = run("essë xs = [1]; xs[1] = 2;").unwrap_err();
+    let error = run("essë vistë xs = [1]; xs[1] = 2;").unwrap_err();
     assert!(error.contains("out of bounds"), "{error}");
 }
 
@@ -197,7 +190,7 @@ fn list_of_functions() {
 #[test]
 fn for_loop_closures() {
     let source = r#"
-        essë fs = [];
+        essë vistë fs = [];
         ilyë x mí [1, 2, 3] {
             maita f() -> Notessë { entul x; }
             napan(fs, f);
@@ -278,7 +271,7 @@ fn quenya_spellings() {
     assert_eq!(ok("essë x = 1; quétë(x);"), "1\n");
     assert_eq!(ok("quétë(naitë);"), "naitë\n");
     assert_eq!(
-        ok("essë i = 0; yallumë i < 2 { quétë(i); i = i + 1; }"),
+        ok("essë vistë i = 0; yallumë i < 2 { quétë(i); i = i + 1; }"),
         "0\n1\n"
     );
     assert_eq!(ok("essë xs = [1, 2]; ilyë x mí xs { quétë(x); }"), "1\n2\n");
@@ -375,11 +368,11 @@ fn missing_return() {
 
 #[test]
 fn empty_list_inference() {
-    assert_eq!(ok("essë xs = []; napan(xs, 1); quétë(xs);"), "[1]\n");
+    assert_eq!(ok("essë vistë xs = []; napan(xs, 1); quétë(xs);"), "[1]\n");
     let error = run("essë xs = [];").unwrap_err();
     assert!(error.contains("cannot infer the type"), "{error}");
     assert_eq!(
-        ok("essë xs: Técma<Notessë> = []; napan(xs, 1); quétë(xs);"),
+        ok("essë vistë xs: Técma<Notessë> = []; napan(xs, 1); quétë(xs);"),
         "[1]\n"
     );
 }
@@ -437,7 +430,7 @@ fn function_type_mismatch() {
 fn builtin_as_value() {
     assert_eq!(ok(r#"essë f = notië; quétë(f("hello"));"#), "5\n");
     assert_eq!(
-        ok("essë f = napan; essë xs = [1]; f(xs, 2); quétë(xs);"),
+        ok("essë f = napan; essë vistë xs = [1]; f(xs, 2); quétë(xs);"),
         "[1, 2]\n"
     );
 }
@@ -473,7 +466,7 @@ fn empty_list_not_is_rejected() {
 fn structs_and_fields() {
     let source = r#"
         canta Point { x: Notessë, y: Notessë }
-        essë p = Point { x: 1, y: 2 };
+        essë vistë p = Point { x: 1, y: 2 };
         quétë(p.x);
         p.x = 10;
         quétë(p.x);
@@ -487,7 +480,7 @@ fn nested_structs() {
     let source = r#"
         canta Point { x: Notessë, y: Notessë }
         canta Line { start: Point, end: Point }
-        essë l = Line {
+        essë vistë l = Line {
             start: Point { x: 1, y: 2 },
             end: Point { x: 3, y: 4 },
         };
@@ -857,7 +850,7 @@ fn match_in_function_return() {
 #[test]
 fn match_loop_control() {
     let source = r#"
-        essë i = 0;
+        essë vistë i = 0;
         yallumë i < 5 {
             nam i {
                 2 => { i = i + 1; lelya; }
@@ -1115,7 +1108,7 @@ fn block_expression_returns_without_tail_return() {
 #[test]
 fn block_expression_loop_control() {
     let source = r#"
-        essë i = 0;
+        essë vistë i = 0;
         yallumë i < 5 {
             essë x = { i = i + 1; qui i == 2 { lelya; } i };
             quétë(x);
@@ -1127,7 +1120,7 @@ fn block_expression_loop_control() {
 #[test]
 fn block_expression_break() {
     let source = r#"
-        essë i = 0;
+        essë vistë i = 0;
         yallumë naitë {
             essë x = { i = i + 1; qui i == 3 { rac; } i };
             quétë(x);
@@ -1140,7 +1133,7 @@ fn block_expression_break() {
 #[test]
 fn block_expression_assignment() {
     let source = r#"
-        essë x = 0;
+        essë vistë x = 0;
         essë y = { x = 1; x + 1 };
         quétë(x);
         quétë(y);
@@ -1289,4 +1282,318 @@ fn top_level_return() {
 fn parse_error() {
     let error = run("essë x = ;").unwrap_err();
     assert!(error.contains("expected expression"), "{error}");
+}
+
+#[test]
+fn copy_values_do_not_move() {
+    assert_eq!(ok("essë x = 1; essë y = x; quétë(x); quétë(y);"), "1\n1\n");
+    assert_eq!(
+        ok("essë a = naitë; essë b = a; quétë(a); quétë(b);"),
+        "naitë\nnaitë\n"
+    );
+}
+
+#[test]
+fn moved_value_cannot_be_used() {
+    let error = run(r#"essë s = "elen"; essë t = s; quétë(s);"#).unwrap_err();
+    assert!(error.contains("use of moved value `s`"), "{error}");
+    assert!(error.contains("moved at line 1"), "{error}");
+}
+
+#[test]
+fn reassignment_reinitializes_a_moved_value() {
+    assert_eq!(
+        ok(r#"essë vistë s = "elen"; essë t = s; s = "anar"; quétë(s); quétë(t);"#),
+        "anar\nelen\n"
+    );
+}
+
+#[test]
+fn assignment_requires_mut() {
+    let error = run("essë x = 1; x = 2;").unwrap_err();
+    assert!(
+        error.contains("cannot assign to immutable variable `x`"),
+        "{error}"
+    );
+    assert_eq!(ok("essë vistë x = 1; x = 2; quétë(x);"), "2\n");
+}
+
+#[test]
+fn mutable_parameter_allows_assignment() {
+    let error =
+        run("maita f(x: Notessë) -> Notessë { x = x + 1; entul x; } quétë(f(1));").unwrap_err();
+    assert!(
+        error.contains("cannot assign to immutable variable `x`"),
+        "{error}"
+    );
+    assert_eq!(
+        ok("maita f(vistë x: Notessë) -> Notessë { x = x + 1; entul x; } quétë(f(1));"),
+        "2\n"
+    );
+}
+
+#[test]
+fn field_move_is_partial() {
+    let source = r#"
+        canta Pair { text: Quetta, number: Notessë }
+        essë pair = Pair { text: "elen", number: 1 };
+        essë text = pair.text;
+        quétë(pair.number);
+        quétë(text);
+    "#;
+    assert_eq!(ok(source), "1\nelen\n");
+
+    let error = run(r#"
+        canta Pair { text: Quetta, number: Notessë }
+        essë pair = Pair { text: "elen", number: 1 };
+        essë text = pair.text;
+        quétë(pair);
+    "#)
+    .unwrap_err();
+    assert!(error.contains("use of moved value `pair`"), "{error}");
+
+    let error = run(r#"
+        canta Pair { text: Quetta, number: Notessë }
+        essë pair = Pair { text: "elen", number: 1 };
+        essë text = pair.text;
+        quétë(pair.text);
+    "#)
+    .unwrap_err();
+    assert!(error.contains("use of moved value `pair.text`"), "{error}");
+}
+
+#[test]
+fn field_assignment_requires_a_live_base() {
+    let error = run(r#"
+        canta Point { x: Notessë, s: Quetta }
+        essë vistë p = Point { x: 1, s: "a" };
+        essë q = p;
+        p.x = 2;
+    "#)
+    .unwrap_err();
+    assert!(
+        error.contains("cannot assign to a field of moved value `p`"),
+        "{error}"
+    );
+}
+
+#[test]
+fn field_reassignment_reinitializes() {
+    let source = r#"
+        canta Pair { text: Quetta, number: Notessë }
+        essë vistë pair = Pair { text: "elen", number: 1 };
+        essë text = pair.text;
+        pair.text = "anar";
+        quétë(pair.text);
+        quétë(text);
+    "#;
+    assert_eq!(ok(source), "anar\nelen\n");
+}
+
+#[test]
+fn index_move_requires_clone() {
+    let error = run(r#"essë xs = ["elen"]; essë s = xs[0];"#).unwrap_err();
+    assert!(error.contains("cannot move out of an index"), "{error}");
+    assert_eq!(
+        ok(r#"essë xs = ["elen"]; essë s = clone(xs[0]); quétë(s); quétë(xs[0]);"#),
+        "elen\nelen\n"
+    );
+}
+
+#[test]
+fn clone_borrows_and_copies() {
+    let source = r#"
+        essë s = "elen";
+        essë t = clone(s);
+        quétë(s);
+        quétë(t);
+    "#;
+    assert_eq!(ok(source), "elen\nelen\n");
+
+    let source = r#"
+        essë vistë xs = [1, 2];
+        essë vistë ys = clone(xs);
+        napan(ys, 3);
+        quétë(xs);
+        quétë(ys);
+    "#;
+    assert_eq!(ok(source), "[1, 2]\n[1, 2, 3]\n");
+}
+
+#[test]
+fn napan_requires_mutable_list() {
+    let error = run("essë xs = [1]; napan(xs, 2);").unwrap_err();
+    assert!(error.contains("cannot mutate `xs`"), "{error}");
+    assert_eq!(
+        ok("essë vistë xs = [1]; napan(xs, 2); quétë(xs);"),
+        "[1, 2]\n"
+    );
+}
+
+#[test]
+fn for_consumes_the_list() {
+    let error = run("essë xs = [1, 2]; ilyë x mí xs { quétë(x); } quétë(xs);").unwrap_err();
+    assert!(error.contains("use of moved value `xs`"), "{error}");
+}
+
+#[test]
+fn branch_move_marks_value_moved() {
+    let error = run(r#"essë s = "a"; qui naitë { essë t = s; } quétë(s);"#).unwrap_err();
+    assert!(error.contains("use of moved value `s`"), "{error}");
+}
+
+#[test]
+fn divergent_branch_does_not_mark_value_moved() {
+    let source = r#"
+        maita f() -> Quetta {
+            essë s = "a";
+            qui naitë { entul s; }
+            entul s;
+        }
+        quétë(f());
+    "#;
+    assert_eq!(ok(source), "a\n");
+}
+
+#[test]
+fn loop_move_marks_value_moved() {
+    let error = run(r#"essë s = "a"; yallumë naitë { essë t = s; rac; } quétë(s);"#).unwrap_err();
+    assert!(error.contains("use of moved value `s`"), "{error}");
+}
+
+#[test]
+fn struct_values_are_moved() {
+    let error = run(r#"
+        canta Point { x: Notessë, y: Notessë }
+        essë p = Point { x: 1, y: 2 };
+        essë q = p;
+        quétë(p);
+    "#)
+    .unwrap_err();
+    assert!(error.contains("use of moved value `p`"), "{error}");
+
+    let source = r#"
+        canta Point { x: Notessë, y: Notessë }
+        essë p = Point { x: 1, y: 2 };
+        essë q = clone(p);
+        quétë(p);
+        quétë(q);
+    "#;
+    assert_eq!(ok(source), "Point { x: 1, y: 2 }\nPoint { x: 1, y: 2 }\n");
+}
+
+#[test]
+fn enum_copy_is_structural() {
+    let source = r#"
+        cilmë Maybe { None, Some { value: Notessë } }
+        essë a = Maybe::None;
+        essë b = a;
+        quétë(a);
+        quétë(b);
+    "#;
+    assert_eq!(ok(source), "Maybe::None\nMaybe::None\n");
+}
+
+#[test]
+fn method_receiver_is_borrowed() {
+    let source = r#"
+        canta Point { x: Notessë }
+        carasta Point {
+            maita get(immo) -> Notessë { entul immo.x; }
+        }
+        essë p = Point { x: 1 };
+        quétë(p.get());
+        quétë(p.get());
+    "#;
+    assert_eq!(ok(source), "1\n1\n");
+}
+
+#[test]
+fn closure_reads_captured_value() {
+    let source = r#"
+        essë s = "elen";
+        maita f() -> Quetta { entul s + "!"; }
+        quétë(f());
+        quétë(s);
+    "#;
+    assert_eq!(ok(source), "elen!\nelen\n");
+}
+
+#[test]
+fn function_argument_moves_value() {
+    let error =
+        run(r#"maita take(s: Quetta) -> Er { } essë s = "a"; take(s); quétë(s);"#).unwrap_err();
+    assert!(error.contains("use of moved value `s`"), "{error}");
+}
+
+#[test]
+fn match_moves_scrutinee() {
+    let error = run(r#"essë s = "a"; nam s { _ => { } } quétë(s);"#).unwrap_err();
+    assert!(error.contains("use of moved value `s`"), "{error}");
+}
+
+#[test]
+fn match_arms_are_isolated() {
+    let source = r#"
+        essë s = "a";
+        nam 1 {
+            0 => { essë t = s; }
+            _ => { quétë(s); }
+        }
+    "#;
+    assert_eq!(ok(source), "a\n");
+
+    let error =
+        run(r#"essë s = "a"; nam 1 { 0 => { essë t = s; } _ => { } } quétë(s);"#).unwrap_err();
+    assert!(error.contains("use of moved value `s`"), "{error}");
+}
+
+#[test]
+fn closure_assignment_does_not_change_outer_state() {
+    let error =
+        run(r#"essë vistë s = "a"; essë t = s; maita f() { s = "b"; } quétë(s);"#).unwrap_err();
+    assert!(error.contains("use of moved value `s`"), "{error}");
+}
+
+#[test]
+fn examples_run() {
+    let names = [
+        "hello.q",
+        "types.q",
+        "type-inference.q",
+        "lists.q",
+        "structs.q",
+        "enums.q",
+        "blocks.q",
+        "fib.q",
+        "fizzbuzz.q",
+        "higher-order.q",
+        "closure.q",
+        "ownership.q",
+    ];
+    for name in names {
+        let path = format!("{}/examples/{name}", env!("CARGO_MANIFEST_DIR"));
+        let source =
+            std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("{name}: {error}"));
+        run(&source).unwrap_or_else(|error| panic!("{name}: {error}"));
+    }
+}
+
+#[test]
+fn type_error_examples_fail() {
+    let names = [
+        "add.q",
+        "argument.q",
+        "assignment.q",
+        "condition.q",
+        "empty-list.q",
+        "missing-return.q",
+        "recursive-list.q",
+    ];
+    for name in names {
+        let path = format!("{}/examples/type-errors/{name}", env!("CARGO_MANIFEST_DIR"));
+        let source =
+            std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("{name}: {error}"));
+        assert!(run(&source).is_err(), "{name} must fail");
+    }
 }

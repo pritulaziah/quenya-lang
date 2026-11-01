@@ -47,10 +47,11 @@
       }
     },
     "variable-declaration": {
-      "match": "(?<![\\p{L}\\p{N}_])(essë)[ \\t]+([\\p{L}_][\\p{L}\\p{N}_]*)",
+      "match": "(?<![\\p{L}\\p{N}_])(essë)(?:[ \\t]+(vistë))?[ \\t]+([\\p{L}_][\\p{L}\\p{N}_]*)",
       "captures": {
         "1": { "name": "storage.type.quenya" },
-        "2": { "name": "variable.other.quenya" }
+        "2": { "name": "storage.modifier.quenya" },
+        "3": { "name": "variable.other.quenya" }
       }
     },
     "struct-declaration": {
@@ -88,11 +89,11 @@
     "keywords": {
       "patterns": [
         {
-          "match": "(?<![\\p{L}\\p{N}_])(quétë|notië|napan)(?![\\p{L}\\p{N}_])",
+          "match": "(?<![\\p{L}\\p{N}_])(quétë|notië|napan|clone)(?![\\p{L}\\p{N}_])",
           "name": "support.function.builtin.quenya"
         },
         {
-          "match": "(?<![\\p{L}\\p{N}_])(essë|maita|canta|carasta|cilmë)(?![\\p{L}\\p{N}_])",
+          "match": "(?<![\\p{L}\\p{N}_])(essë|vistë|maita|canta|carasta|cilmë)(?![\\p{L}\\p{N}_])",
           "name": "storage.type.quenya"
         },
         {
